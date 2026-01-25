@@ -54,10 +54,10 @@ def _load_images(base_dir=None):
     try:
         if base_dir:
             go_path = os.path.join(base_dir, "assets", "game_over.png")
-            vi_path = os.path.join(base_dir, "assets", "victory.png")
+            vi_path = os.path.join(base_dir, "assets", "vitoria.png")
         else:
             go_path = "assets/game_over.png"
-            vi_path = "assets/victory.png"
+            vi_path = "assets/vitoria.png"
 
         # carregar game over (se existir)
         try:
