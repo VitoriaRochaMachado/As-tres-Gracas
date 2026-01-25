@@ -1,4 +1,4 @@
-# fase2.py (versão finalizada)
+# fase2.py (versão com suporte a "Presa_video")
 import pygame
 import sys
 import math, random
@@ -51,32 +51,47 @@ def _load_sounds(base_dir=None):
 def _load_images(base_dir=None):
     GAME_OVER_BG = None
     VICTORY_BG = None
+    PRESA_VIDEO_BG = None
     try:
         if base_dir:
             go_path = os.path.join(base_dir, "assets", "game_over.png")
             vi_path = os.path.join(base_dir, "assets", "vitoria.png")
+            pv_path = os.path.join(base_dir, "assets", "Presa_video.png")
         else:
             go_path = "assets/game_over.png"
             vi_path = "assets/vitoria.png"
+            pv_path = "assets/Presa_video.png"
 
         # carregar game over (se existir)
         try:
-            GAME_OVER_BG = pygame.image.load(go_path).convert()
-            GAME_OVER_BG = pygame.transform.scale(GAME_OVER_BG, (WIDTH, HEIGHT))
+            if os.path.exists(go_path):
+                GAME_OVER_BG = pygame.image.load(go_path).convert()
+                GAME_OVER_BG = pygame.transform.scale(GAME_OVER_BG, (WIDTH, HEIGHT))
         except Exception:
             GAME_OVER_BG = None
 
         # carregar victory (opcional)
         try:
-            VICTORY_BG = pygame.image.load(vi_path).convert()
-            VICTORY_BG = pygame.transform.scale(VICTORY_BG, (WIDTH, HEIGHT))
+            if os.path.exists(vi_path):
+                VICTORY_BG = pygame.image.load(vi_path).convert()
+                VICTORY_BG = pygame.transform.scale(VICTORY_BG, (WIDTH, HEIGHT))
         except Exception:
             VICTORY_BG = None
+
+        # carregar presa_video (opcional)
+        try:
+            if os.path.exists(pv_path):
+                PRESA_VIDEO_BG = pygame.image.load(pv_path).convert()
+                PRESA_VIDEO_BG = pygame.transform.scale(PRESA_VIDEO_BG, (WIDTH, HEIGHT))
+        except Exception:
+            PRESA_VIDEO_BG = None
+
     except Exception:
         GAME_OVER_BG = None
         VICTORY_BG = None
+        PRESA_VIDEO_BG = None
 
-    return GAME_OVER_BG, VICTORY_BG
+    return GAME_OVER_BG, VICTORY_BG, PRESA_VIDEO_BG
 
 # ----- ENTITIES -----
 class Player:
@@ -264,7 +279,7 @@ def run(screen, clock, font, base_dir=None):
     """
     # carregar sons e imagens (uma vez)
     alarm_sound = _load_sounds(base_dir)
-    GAME_OVER_BG, VICTORY_BG = _load_images(base_dir)
+    GAME_OVER_BG, VICTORY_BG, PRESA_VIDEO_BG = _load_images(base_dir)
 
     # inicialização local de entidades / estado
     door_w, door_h = 120, 16
@@ -384,16 +399,23 @@ def run(screen, clock, font, base_dir=None):
                     alarm_sound.stop()
                 except Exception:
                     pass
-            if child_caught: ending = "Estatua recuperada mas vídeo incrimina — Gerluce presa."
-            elif alarm: ending = "Fugiu com tensão: mas suspeitas permanecem."
-            else: ending = "Sucesso limpo: Gerluce escapou. Justiça feita!"
-            # usa VICTORY_BG se existir
+            # Se o vídeo gravou a criança, usamos PRESA_VIDEO_BG
+            if child_caught:
+                ending = "Estátua recuperada, mas o vídeo incrimina — Gerluce presa."
+                bg = PRESA_VIDEO_BG
+            elif alarm:
+                ending = "Fugiu com tensão: mas suspeitas permanecem."
+                bg = VICTORY_BG
+            else:
+                ending = "Sucesso limpo: Gerluce escapou. Justiça feita!"
+                bg = VICTORY_BG
+            # usa VICTORY_BG ou PRESA_VIDEO_BG se existir
             return show_end_screen_local(
                 screen, clock, font,
                 "MISSÃO CONCLUÍDA",
                 ending,
                 (180,240,180),
-                VICTORY_BG
+                bg
             )
 
         # DRAWING

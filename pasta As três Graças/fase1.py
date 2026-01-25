@@ -19,8 +19,18 @@ class Fase1:
         # Estado do jogador
         self.player_rect = pygame.Rect(50, 50, 28, 36)
 
-        # PAPER: escondido em um local (mat), precisa interagir para "abrir"
-        self.hiding_spot = pygame.Rect(150, 420, 40, 24)   # local onde o papel está escondido
+        # PAPER: múltiplos possíveis esconderijos (mats). A chave ficará em UM deles, escolhido aleatoriamente.
+        # Nota: mantive a posição de exibição do papel quando aberto (paper_rect) igual ao original.
+        self.hiding_spots = [
+            pygame.Rect(150, 420, 40, 24),
+            pygame.Rect(260, 440, 40, 24),
+            pygame.Rect(380, 410, 40, 24),
+            pygame.Rect(520, 380, 40, 24),
+            pygame.Rect(720, 430, 40, 24),
+        ]
+        # escolhe aleatoriamente qual spot contém o papel nessa execução
+        self.hiding_spot = random.choice(self.hiding_spots)
+
         self.paper_rect = pygame.Rect(800, 100, 60, 40)    # posição de exibição do papel quando aberto
         self.paper_hidden = True       # inicialmente escondido
         self.paper_opened = False      # abriu para ver a senha
@@ -128,7 +138,7 @@ class Fase1:
                     if dy > 0: self.player_rect.bottom = w.top
                     if dy < 0: self.player_rect.top = w.bottom
 
-        # Lógica do papel escondido: abrir com SPACE no hiding_spot
+        # Lógica do papel escondido: abrir com SPACE no hiding_spot escolhido aleatoriamente
         if self.paper_hidden and self.player_rect.colliderect(self.hiding_spot):
             if keys[pygame.K_SPACE]:
                 self.paper_hidden = False
@@ -176,9 +186,11 @@ class Fase1:
     def draw(self):
         for w in self.walls: pygame.draw.rect(self.screen, WALL_COLOR, w)
         
-        # desenhar esconderijo (mat) - dá pista sutil
-        pygame.draw.rect(self.screen, (90,50,30), self.hiding_spot)
-        self.draw_text("Piso solto?", self.hiding_spot.x - 4, self.hiding_spot.y - 18, HINT_COLOR)
+        # desenhar todos os esconderijos (mats) - pista sutil em cada um
+        for spot in self.hiding_spots:
+            pygame.draw.rect(self.screen, (90,50,30), spot)
+            # mesma pista em cada ponto de procura
+            self.draw_text("Piso solto?", spot.x - 4, spot.y - 18, HINT_COLOR)
 
         # papel: se aberto, desenha papel com a senha visível
         if not self.paper_hidden:
