@@ -15,6 +15,9 @@ def asset_path(*parts):
 WIDTH, HEIGHT = 1024, 640
 FPS = 60
 
+# ------------------ NEW (global game over sound) ------------------
+GAME_OVER_SOUND = None
+# ------------------------------------------------------------------
 
 # ---------------- TUTORIAL ----------------
 def mostrar_tutorial(screen, clock):
@@ -54,6 +57,14 @@ def mostrar_tutorial(screen, clock):
 # ---------------- GAME OVER DISPLAY ----------------
 def mostrar_game_over(screen, clock, bg):
     font = pygame.font.SysFont("consolas", 28)
+
+    # toca o som de game over UMA VEZ ao entrar na tela (se disponível)
+    try:
+        if GAME_OVER_SOUND:
+            GAME_OVER_SOUND.play()
+    except Exception:
+        pass
+
     while True:
         clock.tick(FPS)
         for e in pygame.event.get():
@@ -198,11 +209,27 @@ def tela_inicial(screen, clock):
 
 # ---------------- MAIN ----------------
 def main():
+    global GAME_OVER_SOUND  # usaremos o global definido acima
+
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("As Três Graças")
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("consolas", 20)
+
+    # ------------------ NEW: tenta carregar som de game over ------------------
+    try:
+        if pygame.mixer.get_init() is None:
+            try:
+                pygame.mixer.init()
+            except Exception:
+                pass
+        if pygame.mixer.get_init() is not None:
+            GAME_OVER_SOUND = pygame.mixer.Sound(asset_path("assets", "game_over_som.mp3"))
+            GAME_OVER_SOUND.set_volume(0.75)
+    except Exception:
+        GAME_OVER_SOUND = None
+    # ------------------------------------------------------------------------
 
     # pré-carrega assets de fim de jogo
     try:

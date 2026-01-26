@@ -31,22 +31,36 @@ STEAL_TIME = 2.0
 # ----- SONS / ASSETS -----
 def _load_sounds(base_dir=None):
     alarm_sound = None
+    game_over_sound = None
     try:
         if base_dir:
-            path = os.path.join(base_dir, "assets", "alarme.mp3")
+            alarm_path = os.path.join(base_dir, "assets", "alarme.mp3")
+            go_path = os.path.join(base_dir, "assets", "game_over_som.mp3")
         else:
-            path = "assets/alarme.mp3"
+            alarm_path = "assets/alarme.mp3"
+            go_path = "assets/game_over_som.mp3"
         if pygame.mixer.get_init() is None:
             try:
                 pygame.mixer.init()
             except Exception:
                 pass
         if pygame.mixer.get_init() is not None:
-            alarm_sound = pygame.mixer.Sound(path)
-            alarm_sound.set_volume(0.6)
+            try:
+                alarm_sound = pygame.mixer.Sound(alarm_path)
+                alarm_sound.set_volume(0.6)
+            except Exception:
+                alarm_sound = None
+            try:
+                # Carrega som de game over (efeito curto)
+                if os.path.exists(go_path):
+                    game_over_sound = pygame.mixer.Sound(go_path)
+                    game_over_sound.set_volume(0.75)
+            except Exception:
+                game_over_sound = None
     except Exception:
         alarm_sound = None
-    return alarm_sound
+        game_over_sound = None
+    return alarm_sound, game_over_sound
 
 def _load_images(base_dir=None):
     GAME_OVER_BG = None
@@ -242,11 +256,18 @@ def draw_text(s, txt, x,y, color=WHITE, font=None):
     s.blit(surf, (x,y))
 
 # ----- TELAS DE FIM (reutilizáveis) -----
-def show_end_screen_local(screen, clock, font, title, msg, color, bg_image=None):
+def show_end_screen_local(screen, clock, font, title, msg, color, bg_image=None, game_over_sound=None):
     """
     Exibe a tela final. Se bg_image for fornecida, usa-a como fundo.
     Retorna True se o jogador pedir para reiniciar (R).
     """
+    # tenta tocar som de game over (se fornecido)
+    try:
+        if game_over_sound:
+            game_over_sound.play()
+    except Exception:
+        pass
+
     if bg_image:
         screen.blit(bg_image, (0, 0))
     else:
@@ -278,7 +299,7 @@ def run(screen, clock, font, base_dir=None):
     Recebe screen/clock/font já inicializados pelo chamador.
     """
     # carregar sons e imagens (uma vez)
-    alarm_sound = _load_sounds(base_dir)
+    alarm_sound, game_over_sound = _load_sounds(base_dir)
     GAME_OVER_BG, VICTORY_BG, PRESA_VIDEO_BG = _load_images(base_dir)
 
     # inicialização local de entidades / estado
@@ -389,7 +410,8 @@ def run(screen, clock, font, base_dir=None):
                     "",
                     "",
                     ALARM_COLOR,
-                    GAME_OVER_BG
+                    GAME_OVER_BG,
+                    game_over_sound  # << passamos o som para ser tocado
                 )
 
         # FIM DE JOGO: SUCESSO
@@ -415,7 +437,8 @@ def run(screen, clock, font, base_dir=None):
                 "MISSÃO CONCLUÍDA",
                 ending,
                 (180,240,180),
-                bg
+                bg,
+                game_over_sound  # << também passamos aqui (se quiser tocar um som de vitória no futuro)
             )
 
         # DRAWING
