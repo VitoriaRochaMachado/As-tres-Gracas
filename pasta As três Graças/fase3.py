@@ -1,4 +1,4 @@
-# fase3.py (refatorado com suporte a sprite idle/walk do jogador)
+# fase3.py (refatorado com suporte a sprite idle/walk do jogador + música de fundo da fase 3)
 import pygame
 import sys
 import math, random
@@ -357,6 +357,31 @@ def run(screen, clock, font, base_dir=None):
     alarm_sound, game_over_sound, victory_sound = _load_sounds(base_dir)
     GAME_OVER_BG, VICTORY_BG, PRESA_VIDEO_BG = _load_images(base_dir)
 
+    # --- MÚSICA DE FUNDO DA FASE 3 (ADIÇÃO MÍNIMA) ---
+    try:
+        if base_dir:
+            fase3_music_path = os.path.join(base_dir, "assets", "fase3_som.mp3")
+        else:
+            fase3_music_path = "assets/fase3_som.mp3"
+
+        # garante que o mixer esteja inicializado (o _load_sounds já tentará, mas checamos novamente com try)
+        if pygame.mixer.get_init() is None:
+            try:
+                pygame.mixer.init()
+            except Exception:
+                pass
+
+        if os.path.exists(fase3_music_path) and pygame.mixer.get_init() is not None:
+            try:
+                pygame.mixer.music.load(fase3_music_path)
+                pygame.mixer.music.set_volume(0.5)
+                pygame.mixer.music.play(-1)  # loop infinito
+            except Exception:
+                pass
+    except Exception:
+        pass
+    # ----------------------------------------------
+
     # --- CARREGA SPRITES DO JOGADOR (MÍNIMA ALTERAÇÃO) ---
     player_idle = None
     player_walk = []
@@ -506,6 +531,11 @@ def run(screen, clock, font, base_dir=None):
                         alarm_sound.stop()
                     except Exception:
                         pass
+                # tenta parar a música de fundo antes de mostrar a tela de game over
+                try:
+                    pygame.mixer.music.stop()
+                except Exception:
+                    pass
                 # usa a imagem GAME_OVER_BG como fundo, se carregada
                 return show_end_screen_local(
                     screen, clock, font,
@@ -523,6 +553,11 @@ def run(screen, clock, font, base_dir=None):
                     alarm_sound.stop()
                 except Exception:
                     pass
+            # para a música de fundo antes das telas finais
+            try:
+                pygame.mixer.music.stop()
+            except Exception:
+                pass
             # Se o vídeo gravou a criança, usamos PRESA_VIDEO_BG
             if child_caught:
                 ending = "Estátua recuperada, mas o vídeo incrimina — Gerluce presa."
