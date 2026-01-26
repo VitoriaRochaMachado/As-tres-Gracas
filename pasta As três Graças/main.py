@@ -1,8 +1,10 @@
+# main.py (versão com mínima alteração: adiciona fase2 no fluxo)
 import os
 import pygame
 import sys
 
 from fase1 import Fase1
+import fase2
 import fase3 
 
 # ---------------- PATHS ----------------
@@ -275,6 +277,28 @@ def main():
             mostrar_game_over(screen, clock, GAME_OVER_BG)
             continue
 
+        # ---------- CHAMA FASE 2 (mínima alteração) ----------
+        try:
+            # passa BASE_DIR para fase2 para que ela carregue sprites/sons do folder assets
+            resultado_fase2 = fase2.run(screen, clock, font, BASE_DIR)
+        except Exception as e:
+            # se der erro aqui, mostramos o traceback para diagnosticar (não seguir silenciosamente)
+            import traceback
+            print("Erro ao executar fase2 (traceback):")
+            traceback.print_exc()
+            resultado_fase2 = None
+
+        if resultado_fase2 == "LOSE":
+            # se perder na fase2, mostra game over e volta ao menu
+            mostrar_game_over(screen, clock, GAME_OVER_BG)
+            continue
+
+        # NOVA LINHA (mínima mudança): se as câmeras gravaram, é game over imediato
+        if resultado_fase2 == "RECORDED":
+            mostrar_game_over(screen, clock, GAME_OVER_BG)
+            continue
+        # ---------- fim da inserção mínima da Fase 2 ----------
+
         # Antes de chamar a Fase 3, injetamos um proxy seguro em fase3.show_end_screen
         # que distingue vitória de derrota pelo `title` passado.
         try:
@@ -298,8 +322,7 @@ def main():
         except Exception as e:
             print("Aviso: não foi possível sobrescrever show_end_screen em fase3:", e)
 
-        # chama Fase 2 (sem alterar o arquivo)
-        # chama Fase 2 (refatorado)
+        # chama Fase 3 (refatorado)
         fase3.run(screen, clock, font, BASE_DIR)
 
 
