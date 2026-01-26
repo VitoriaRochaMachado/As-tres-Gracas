@@ -365,7 +365,7 @@ def run(screen, clock, font, base_dir=None):
             return "RECORDED"
 
         # exit condition: reach right edge
-        if player.rect.right >= WIDTH - 64:
+        if player.rect.right >= WIDTH - 64 and not cams:
             stop_alarm()
             return "CLEAN"
 
