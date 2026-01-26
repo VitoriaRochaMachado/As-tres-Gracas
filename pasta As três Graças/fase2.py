@@ -482,7 +482,7 @@ def run(screen, clock, font, base_dir=None):
             draw_text(screen, "Pressione E para abrir a porta", 18, HEIGHT-54, HINT_COLOR, font)
 
         hud_y = HEIGHT - 26
-        status = "Estatueta: ✅" if player.has_statue else "Estatueta: —"
+        status = "Estatueta: OK" if player.has_statue else "Estatueta: —"
         status2 = "Alarme: ATIVO" if alarm else "Alarme: off"
         draw_text(screen, status + "   " + status2, 18, hud_y, WHITE, font)
         if player.stealing:
