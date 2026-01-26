@@ -122,7 +122,7 @@ def _load_images(base_dir=None):
 # ----- ENTITIES -----
 class Player:
     def __init__(self, x,y):
-        self.rect = pygame.Rect(x, y, 28, 36)
+        self.rect = pygame.Rect(x, y, 45, 60)
 
         self.speed = PLAYER_SPEED
         self.stealing = False
