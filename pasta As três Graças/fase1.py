@@ -1,6 +1,7 @@
 import pygame
 import math
 import random
+import os  # ADIÇÃO MÍNIMA: necessário para construir o path do asset
 
 # Configurações locais da Fase 1
 WHITE = (240,240,240)
@@ -60,6 +61,56 @@ class Fase1:
 
         self._prev_num_keys = set()
 
+        # --- MUDANÇA MÍNIMA E MAIS ROBUSTA: som do cronômetro com curva exponencial dramática ---
+        self.timer_sound = None
+        self.timer_base_volume = 0.18  # volume inicial (0.0 - 1.0)
+        self.timer_max_volume = 1.0    # volume máximo quando o tempo acabar
+        self._initial_level_timer = self.level_timer  # usado para calcular progresso
+
+        try:
+            if pygame.mixer.get_init() is None:
+                try:
+                    pygame.mixer.init()
+                except Exception as e:
+                    print("Fase1: pygame.mixer.init() falhou:", e)
+
+            module_dir = os.path.dirname(os.path.abspath(__file__))
+            candidates = [
+                os.path.join(module_dir, "assets", "cronometro.mp3"),
+                os.path.join(module_dir, "assets", "cronometro.ogg"),
+                os.path.join(module_dir, "assets", "cronometro.wav"),
+                os.path.join(module_dir, "..", "assets", "cronometro.mp3"),
+            ]
+            cron_path = None
+            for p in candidates:
+                if os.path.exists(p):
+                    cron_path = p
+                    break
+
+            if cron_path is None:
+                print("Fase1: arquivo de som 'cronometro' não encontrado em candidates:", candidates)
+            else:
+                if pygame.mixer.get_init() is not None:
+                    try:
+                        self.timer_sound = pygame.mixer.Sound(cron_path)
+                        try:
+                            self.timer_sound.set_volume(self.timer_base_volume)
+                        except Exception:
+                            pass
+                        try:
+                            self.timer_sound.play(loops=-1)
+                            print("Fase1: tocando som de cronômetro:", cron_path)
+                        except Exception as e:
+                            print("Fase1: falha ao play() do timer_sound:", e)
+                    except Exception as e:
+                        print("Fase1: falha ao carregar Sound:", e)
+                else:
+                    print("Fase1: pygame.mixer não inicializado; não será possível tocar som.")
+        except Exception as e:
+            print("Fase1: erro ao configurar timer_sound:", e)
+            self.timer_sound = None
+        # ----------------------------------------
+
     def draw_text(self, txt, x, y, color=WHITE):
         surf = self.font.render(txt, True, color)
         self.screen.blit(surf, (x, y))
@@ -99,8 +150,44 @@ class Fase1:
         return enter_pressed, esc_pressed
 
     def update(self, dt):
+        # decrementa tempo
         self.level_timer -= dt
+
+        # --- atualiza o volume do timer com curva exponencial dramática (MÍNIMA ALTERAÇÃO) ---
+        if self.timer_sound and self._initial_level_timer > 0:
+            # progresso linear 0->1 (tempo passado / total)
+            progress = max(0.0, min(1.0, (self._initial_level_timer - self.level_timer) / self._initial_level_timer))
+
+            # CURVA EXPONENCIAL NORMALIZADA
+            # k controla a "agressividade" da exponencial; maior k = aumento mais abrupto perto do fim
+            k = 4.2
+            # eased exponencial normalizada em [0,1]
+            try:
+                eased = (math.exp(k * progress) - 1.0) / (math.exp(k) - 1.0)
+            except Exception:
+                eased = progress  # fallback seguro
+
+            # Para manter ainda mais ênfase nos últimos 10s, podemos combinar com um boost local
+            if self.level_timer <= 10.0:
+                # multiplicador extra nos últimos 10s (suaviza saturação)
+                local_progress = 1.0 - (max(0.0, self.level_timer) / 10.0)
+                eased = max(eased, 0.7 + 0.3 * (local_progress ** 2))
+
+            new_volume = self.timer_base_volume + (self.timer_max_volume - self.timer_base_volume) * eased
+            new_volume = max(0.0, min(1.0, new_volume))
+            try:
+                self.timer_sound.set_volume(new_volume)
+            except Exception:
+                pass
+        # -------------------------------------------------------------------------
+
         if self.level_timer <= 0:
+            # PARA O SOM QUANDO ACABA O TEMPO (MÍNIMA ALTERAÇÃO)
+            if self.timer_sound:
+                try:
+                    self.timer_sound.stop()
+                except Exception:
+                    pass
             return "LOSE_TIME"
 
         keys = pygame.key.get_pressed()
@@ -150,6 +237,12 @@ class Fase1:
                 self.safe_processing = False
                 if self.typed_code == self.code:
                     self.has_key = True
+                    # PARA O SOM AO PASSAR DE FASE (MÍNIMA ALTERAÇÃO)
+                    if self.timer_sound:
+                        try:
+                            self.timer_sound.stop()
+                        except Exception:
+                            pass
                     return "NEXT"
                 else:
                     self.typed_code = ""
