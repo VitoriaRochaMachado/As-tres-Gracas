@@ -1,4 +1,4 @@
-# fase2.py (versão com suporte a "Presa_video")
+# fase2.py (versão com suporte a "Presa_video" e som de vitória separado)
 import pygame
 import sys
 import math, random
@@ -32,13 +32,16 @@ STEAL_TIME = 2.0
 def _load_sounds(base_dir=None):
     alarm_sound = None
     game_over_sound = None
+    victory_sound = None
     try:
         if base_dir:
             alarm_path = os.path.join(base_dir, "assets", "alarme.mp3")
             go_path = os.path.join(base_dir, "assets", "game_over_som.mp3")
+            vi_path = os.path.join(base_dir, "assets", "vitoria_som.mp3")
         else:
             alarm_path = "assets/alarme.mp3"
             go_path = "assets/game_over_som.mp3"
+            vi_path = "assets/vitoria_som.mp3"
         if pygame.mixer.get_init() is None:
             try:
                 pygame.mixer.init()
@@ -46,8 +49,9 @@ def _load_sounds(base_dir=None):
                 pass
         if pygame.mixer.get_init() is not None:
             try:
-                alarm_sound = pygame.mixer.Sound(alarm_path)
-                alarm_sound.set_volume(0.6)
+                if os.path.exists(alarm_path):
+                    alarm_sound = pygame.mixer.Sound(alarm_path)
+                    alarm_sound.set_volume(0.6)
             except Exception:
                 alarm_sound = None
             try:
@@ -57,10 +61,18 @@ def _load_sounds(base_dir=None):
                     game_over_sound.set_volume(0.75)
             except Exception:
                 game_over_sound = None
+            try:
+                # Carrega som de vitória (novo, opcional)
+                if os.path.exists(vi_path):
+                    victory_sound = pygame.mixer.Sound(vi_path)
+                    victory_sound.set_volume(0.85)
+            except Exception:
+                victory_sound = None
     except Exception:
         alarm_sound = None
         game_over_sound = None
-    return alarm_sound, game_over_sound
+        victory_sound = None
+    return alarm_sound, game_over_sound, victory_sound
 
 def _load_images(base_dir=None):
     GAME_OVER_BG = None
@@ -261,7 +273,7 @@ def show_end_screen_local(screen, clock, font, title, msg, color, bg_image=None,
     Exibe a tela final. Se bg_image for fornecida, usa-a como fundo.
     Retorna True se o jogador pedir para reiniciar (R).
     """
-    # tenta tocar som de game over (se fornecido)
+    # tenta tocar som de fim (se fornecido)
     try:
         if game_over_sound:
             game_over_sound.play()
@@ -299,7 +311,7 @@ def run(screen, clock, font, base_dir=None):
     Recebe screen/clock/font já inicializados pelo chamador.
     """
     # carregar sons e imagens (uma vez)
-    alarm_sound, game_over_sound = _load_sounds(base_dir)
+    alarm_sound, game_over_sound, victory_sound = _load_sounds(base_dir)
     GAME_OVER_BG, VICTORY_BG, PRESA_VIDEO_BG = _load_images(base_dir)
 
     # inicialização local de entidades / estado
@@ -411,7 +423,7 @@ def run(screen, clock, font, base_dir=None):
                     "",
                     ALARM_COLOR,
                     GAME_OVER_BG,
-                    game_over_sound  # << passamos o som para ser tocado
+                    game_over_sound  # << som de derrota
                 )
 
         # FIM DE JOGO: SUCESSO
@@ -425,12 +437,16 @@ def run(screen, clock, font, base_dir=None):
             if child_caught:
                 ending = "Estátua recuperada, mas o vídeo incrimina — Gerluce presa."
                 bg = PRESA_VIDEO_BG
+                end_sound = game_over_sound  # mantém game over se o final for "punição"
             elif alarm:
                 ending = "Fugiu com tensão: mas suspeitas permanecem."
                 bg = VICTORY_BG
+                end_sound = victory_sound  # vitória tensa — toca som de vitória se disponível
             else:
                 ending = "Sucesso limpo: Gerluce escapou. Justiça feita!"
                 bg = VICTORY_BG
+                end_sound = victory_sound  # sucesso limpo — som de vitória
+
             # usa VICTORY_BG ou PRESA_VIDEO_BG se existir
             return show_end_screen_local(
                 screen, clock, font,
@@ -438,7 +454,7 @@ def run(screen, clock, font, base_dir=None):
                 ending,
                 (180,240,180),
                 bg,
-                game_over_sound  # << também passamos aqui (se quiser tocar um som de vitória no futuro)
+                end_sound  # passa o som apropriado (vitória ou game_over em casos especiais)
             )
 
         # DRAWING
