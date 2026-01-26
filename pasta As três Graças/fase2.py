@@ -1,4 +1,4 @@
-# fase2.py — versão atualizada: limpa recorded/alarm quando sabotagem completa + feedback
+# fase2.py — câmeras com varredura (sweep) — mínima alteração sobre a versão anterior
 import pygame
 import sys
 import math
@@ -138,10 +138,35 @@ class Player:
             pygame.draw.rect(surf, PLAYER_COLOR, self.rect)
 
 class Camera:
-    def __init__(self, x,y,angle):
+    """
+    Camera now supports an optional sweep:
+      - angle: current angle in degrees
+      - min_angle, max_angle: bounds for sweeping (deg)
+      - sweep_speed: degrees per second (positive)
+      - sweep_dir: 1 or -1 (current sweep direction)
+    """
+    def __init__(self, x, y, angle, min_angle=None, max_angle=None, sweep_speed=0):
         self.pos = pygame.Vector2(x,y)
-        self.angle = angle
+        self.angle = float(angle)
         self.rect = pygame.Rect(x-10,y-10,20,20)
+
+        # sweep parameters (optional). If min/max are None or speed==0 => static camera
+        self.min_angle = float(min_angle) if min_angle is not None else None
+        self.max_angle = float(max_angle) if max_angle is not None else None
+        self.sweep_speed = float(sweep_speed)
+        self.sweep_dir = 1  # 1 -> increasing angle, -1 -> decreasing
+
+    def update(self, dt):
+        # if sweep is configured, advance angle and bounce between min/max
+        if self.min_angle is not None and self.max_angle is not None and self.sweep_speed != 0:
+            self.angle += self.sweep_dir * self.sweep_speed * dt
+            # bounce
+            if self.angle > self.max_angle:
+                self.angle = self.max_angle
+                self.sweep_dir = -1
+            elif self.angle < self.min_angle:
+                self.angle = self.min_angle
+                self.sweep_dir = 1
 
     def can_see(self, player_rect, walls):
         start = self.pos
@@ -169,6 +194,7 @@ class Camera:
 
     def draw(self, surf):
         pygame.draw.rect(surf, CAM_COLOR, self.rect)
+        # cone visualization based on current angle
         a1 = math.radians(self.angle - CAM_FOV_ANGLE/2)
         a2 = math.radians(self.angle + CAM_FOV_ANGLE/2)
         p1 = self.pos + pygame.Vector2(math.cos(a1), math.sin(a1)) * CAM_FOV_DIST
@@ -210,9 +236,10 @@ def run(screen, clock, font, base_dir=None):
     player.idle = idle_img
     player.walk = walk_imgs
 
+    # Cameras: now with sweep. Arguments: x,y,initial_angle,min_angle,max_angle,sweep_speed
     cams = [
-        Camera(360,200,0),
-        Camera(620,360,180),
+        Camera(360,200, -35, -60, 0, 30.0),   # varre de -60 a 0 graus a 30°/s
+        Camera(620,360, 215, 180, 250, 22.0), # varre de 180 a 250 graus a 22°/s
     ]
 
     panel = pygame.Rect(480,120,40,40)
@@ -296,6 +323,10 @@ def run(screen, clock, font, base_dir=None):
                 sabotage_timer = 0.0
             else:
                 continue  # show message fully before proceeding
+
+        # Update camera angles (sweep) BEFORE visibility checks
+        for c in cams:
+            c.update(dt)
 
         # check cameras only if there are cameras
         saw_now = False
