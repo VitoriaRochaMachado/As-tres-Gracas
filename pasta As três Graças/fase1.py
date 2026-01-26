@@ -188,7 +188,7 @@ class Fase1:
         
         # desenhar todos os esconderijos (mats) - pista sutil em cada um
         for spot in self.hiding_spots:
-            pygame.draw.rect(self.screen, (90,50,30), spot)
+            pygame.draw.rect(self.screen, (20,25,25), spot)
             # mesma pista em cada ponto de procura
             self.draw_text("Piso solto?", spot.x - 4, spot.y - 18, HINT_COLOR)
 
