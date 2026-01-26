@@ -3,7 +3,7 @@ import pygame
 import sys
 
 from fase1 import Fase1
-import fase3  # NÃO renomeie nada
+import fase3 
 
 # ---------------- PATHS ----------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

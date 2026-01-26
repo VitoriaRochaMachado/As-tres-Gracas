@@ -18,7 +18,49 @@ class Fase1:
         self.width, self.height = screen.get_size()
         
         # Estado do jogador
-        self.player_rect = pygame.Rect(50, 50, 28, 36)
+        self.player_rect = pygame.Rect(50, 50, 84, 108)
+        self.facing_left = False
+
+        # --- SPRITES DO JOGADOR (MÍNIMA ALTERAÇÃO) ---
+        self._images_ok = False
+        try:
+            module_dir = os.path.dirname(os.path.abspath(__file__))
+            player_dir = os.path.join(module_dir, "assets", "player")
+            idle_path = os.path.join(player_dir, "idle.png")
+            walk_paths = [os.path.join(player_dir, f"walk_{i}.png") for i in range(4)]
+
+            if os.path.exists(idle_path):
+                self.player_idle = pygame.image.load(idle_path).convert_alpha()
+            else:
+                raise FileNotFoundError("idle not found")
+
+            self.player_walk = []
+            for p in walk_paths:
+                if os.path.exists(p):
+                    self.player_walk.append(pygame.image.load(p).convert_alpha())
+            # if there is at least one walk frame, accept images
+            if len(self.player_walk) >= 1:
+                self._images_ok = True
+            else:
+                # allow single idle only (still ok: idle will be used)
+                self._images_ok = True  # still ok, but walk will fallback to idle frame index 0
+                self.player_walk = [self.player_idle]
+        except Exception:
+            # fallback: keeps _images_ok False and code will draw rect
+            self._images_ok = False
+            try:
+                # ensure attributes exist even if images missing
+                self.player_idle
+                self.player_walk
+            except Exception:
+                self.player_idle = None
+                self.player_walk = []
+
+        self.player_frame = 0
+        self.player_anim_timer = 0.0
+        self.player_anim_speed = 0.12  # segundos por frame (ajustável)
+        self.player_moving = False
+        # --------------------------------------------
 
         # PAPER: múltiplos possíveis esconderijos
         self.hiding_spots = [
@@ -198,6 +240,13 @@ class Fase1:
         if keys[pygame.K_UP] or keys[pygame.K_w]: dy -= 1
         if keys[pygame.K_DOWN] or keys[pygame.K_s]: dy += 1
         
+        # <<< ADIÇÃO MÍNIMA: atualiza facing com base em dx >>>
+        if dx < 0:
+            self.facing_left = True
+        elif dx > 0:
+            self.facing_left = False
+        # <<< fim da adição >>>
+
         if dx or dy:
             mag = math.hypot(dx, dy)
             self.player_rect.x += (dx/mag) * speed * dt
@@ -211,6 +260,10 @@ class Fase1:
                 if self.player_rect.colliderect(w):
                     if dy > 0: self.player_rect.bottom = w.top
                     if dy < 0: self.player_rect.top = w.bottom
+
+        # --- Atualiza flag de movimento para animação (MÍNIMA ALTERAÇÃO) ---
+        self.player_moving = (dx != 0 or dy != 0)
+        # -------------------------------------------------------------------
 
         if self.paper_hidden and self.player_rect.colliderect(self.hiding_spot):
             if keys[pygame.K_SPACE]:
@@ -249,6 +302,19 @@ class Fase1:
                     self.entering_code = False
                     self.level_timer = max(0.0, self.level_timer - 4.0)
 
+        # --- Animação do jogador (usa dt; mínima alteração aqui) ---
+        if self._images_ok:
+            if self.player_moving:
+                self.player_anim_timer += dt
+                if self.player_anim_timer >= self.player_anim_speed:
+                    self.player_anim_timer = 0.0
+                    self.player_frame = (self.player_frame + 1) % len(self.player_walk)
+            else:
+                # reset para frame 0 quando parado
+                self.player_frame = 0
+                self.player_anim_timer = 0.0
+        # -----------------------------------------------------------------
+
         return None
 
     def draw(self):
@@ -281,7 +347,29 @@ class Fase1:
         pygame.draw.rect(self.screen, SAFE_COLOR, self.safe_rect)
         self.draw_text("COFRE", self.safe_rect.x-5, self.safe_rect.y-25)
 
-        pygame.draw.rect(self.screen, (200,60,80), self.player_rect)
+        # --- DESENHO DO JOGADOR: sprite se possível, senão retângulo (MÍNIMA ALTERAÇÃO) ---
+        if self._images_ok and (self.player_idle is not None):
+            if self.player_moving:
+                sprite = self.player_walk[self.player_frame]
+            else:
+                sprite = self.player_idle
+
+            # escala o sprite para o tamanho do rect do jogador para manter colisões iguais
+            try:
+                sprite_scaled = pygame.transform.smoothscale(sprite, (self.player_rect.width, self.player_rect.height))
+            except Exception:
+                sprite_scaled = pygame.transform.scale(sprite, (self.player_rect.width, self.player_rect.height))
+
+            # <<< ADIÇÃO MÍNIMA: flip horizontal quando estiver virado à esquerda >>>
+            if self.facing_left:
+                sprite_scaled = pygame.transform.flip(sprite_scaled, True, False)
+            # <<< fim da adição >>>
+
+            self.screen.blit(sprite_scaled, self.player_rect.topleft)
+        else:
+            # fallback original (retângulo)
+            pygame.draw.rect(self.screen, (200,60,80), self.player_rect)
+        # ------------------------------------------------------------------------------
 
         if self.player_rect.colliderect(self.safe_rect.inflate(28,28)):
             if not self.has_seen_code:
