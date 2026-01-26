@@ -18,7 +18,7 @@ class Fase1:
         self.width, self.height = screen.get_size()
         
         # Estado do jogador
-        self.player_rect = pygame.Rect(50, 50, 84, 108)
+        self.player_rect = pygame.Rect(50, 50, 45, 75)
         self.facing_left = False
 
         # --- SPRITES DO JOGADOR (MÍNIMA ALTERAÇÃO) ---
