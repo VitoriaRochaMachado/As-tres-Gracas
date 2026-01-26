@@ -3,7 +3,7 @@ import pygame
 import sys
 
 from fase1 import Fase1
-import fase2  # NÃO renomeie nada
+import fase3  # NÃO renomeie nada
 
 # ---------------- PATHS ----------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -275,7 +275,7 @@ def main():
             mostrar_game_over(screen, clock, GAME_OVER_BG)
             continue
 
-        # Antes de chamar a Fase 2, injetamos um proxy seguro em fase2.show_end_screen
+        # Antes de chamar a Fase 3, injetamos um proxy seguro em fase3.show_end_screen
         # que distingue vitória de derrota pelo `title` passado.
         try:
             def _proxy_show_end_screen(title, msg, color):
@@ -294,13 +294,13 @@ def main():
                 # fallback: trata como derrota
                 return mostrar_game_over(screen, clock, GAME_OVER_BG)
 
-            fase2.show_end_screen = _proxy_show_end_screen
+            fase3.show_end_screen = _proxy_show_end_screen
         except Exception as e:
-            print("Aviso: não foi possível sobrescrever show_end_screen em fase2:", e)
+            print("Aviso: não foi possível sobrescrever show_end_screen em fase3:", e)
 
         # chama Fase 2 (sem alterar o arquivo)
         # chama Fase 2 (refatorado)
-        fase2.run(screen, clock, font, BASE_DIR)
+        fase3.run(screen, clock, font, BASE_DIR)
 
 
 
