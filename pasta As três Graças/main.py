@@ -1,4 +1,4 @@
-# main.py (versão com mínima alteração: adiciona fase2 no fluxo)
+# main.py (versão com mínima alteração: adiciona fase2 no fluxo + música na tela inicial)
 import os
 import pygame
 import sys
@@ -126,9 +126,29 @@ def tela_inicial(screen, clock):
     except Exception:
         bg = None
 
-    # som (fallback silencioso)
+    # --- SOM DA TELA INICIAL: música de fundo (ADIÇÃO MÍNIMA) ---
     try:
-        pygame.mixer.init()
+        # garante que o mixer esteja inicializado
+        if pygame.mixer.get_init() is None:
+            try:
+                pygame.mixer.init()
+            except Exception:
+                pass
+
+        inicio_music_path = asset_path("assets", "tela_inicio_som.mp3")
+        if os.path.exists(inicio_music_path) and pygame.mixer.get_init() is not None:
+            try:
+                pygame.mixer.music.load(inicio_music_path)
+                pygame.mixer.music.set_volume(0.45)
+                pygame.mixer.music.play(-1)  # loop infinito enquanto estiver no menu
+            except Exception:
+                pass
+    except Exception:
+        pass
+    # ----------------------------------------------------------------
+
+    # som (fallback silencioso) para hover / click
+    try:
         hover_sound = pygame.mixer.Sound(asset_path("assets", "clicar.mp3"))
         click_sound = pygame.mixer.Sound(asset_path("assets", "clicar.mp3"))
     except Exception:
@@ -166,24 +186,48 @@ def tela_inicial(screen, clock):
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                try:
+                    pygame.mixer.music.stop()
+                except Exception:
+                    pass
                 pygame.quit(); sys.exit()
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if start.collidepoint(event.pos):
                     if click_sound: click_sound.play()
+                    try:
+                        pygame.mixer.music.stop()
+                    except Exception:
+                        pass
                     return "START"
                 if tuto.collidepoint(event.pos):
                     if click_sound: click_sound.play()
+                    try:
+                        pygame.mixer.music.stop()
+                    except Exception:
+                        pass
                     return "TUTORIAL"
                 if sair.collidepoint(event.pos):
                     if click_sound: click_sound.play()
+                    try:
+                        pygame.mixer.music.stop()
+                    except Exception:
+                        pass
                     pygame.quit(); sys.exit()
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN:
                     if click_sound: click_sound.play()
+                    try:
+                        pygame.mixer.music.stop()
+                    except Exception:
+                        pass
                     return "START"
                 if event.key == pygame.K_ESCAPE:
+                    try:
+                        pygame.mixer.music.stop()
+                    except Exception:
+                        pass
                     pygame.quit(); sys.exit()
 
         if bg:
