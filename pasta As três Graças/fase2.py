@@ -223,10 +223,39 @@ def run(screen, clock, font, base_dir=None):
     alarm_sound, sabotage_sound = _load_sounds(base_dir)
     sprites_ok, idle_img, walk_imgs = _load_player_sprites(base_dir)
 
+    # --- MÚSICA DE FUNDO DA FASE 2 (ADIÇÃO MÍNIMA) ---
+    try:
+        if base_dir:
+            fase2_music_path = os.path.join(base_dir, "assets", "som_fase2.mp3")
+        else:
+            fase2_music_path = "assets/som_fase2.mp3"
+
+        if pygame.mixer.get_init() is None:
+            try:
+                pygame.mixer.init()
+            except Exception:
+                pass
+
+        if os.path.exists(fase2_music_path) and pygame.mixer.get_init() is not None:
+            try:
+                pygame.mixer.music.load(fase2_music_path)
+                pygame.mixer.music.set_volume(0.5)
+                pygame.mixer.music.play(-1)  # loop infinito
+            except Exception:
+                pass
+    except Exception:
+        pass
+    # ----------------------------------------------
+
     def stop_alarm():
         try:
             if alarm_sound:
                 alarm_sound.stop()
+        except Exception:
+            pass
+        # também para a música de fundo (adicional mínimo)
+        try:
+            pygame.mixer.music.stop()
         except Exception:
             pass
 
@@ -359,7 +388,7 @@ def run(screen, clock, font, base_dir=None):
             draw_text(screen, f"TEMPO: {int(timer)}s", 18, 18, font, ALARM_COLOR)
             draw_text(screen, "CÂMERAS GRAVARAM", WIDTH//2 - 120, HEIGHT//2 - 10, font, ALARM_COLOR)
             pygame.display.flip()
-            # stop alarm (we show message, then return)
+            # stop alarm and music (we show message, then return)
             stop_alarm()
             alarm_playing = False
             return "RECORDED"
