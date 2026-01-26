@@ -80,6 +80,17 @@ class Fase1:
 
         # SAFE / COFRE
         self.safe_rect = pygame.Rect(500, 500, 50, 50)
+        # --- MÍNIMA ADIÇÃO: carregar imagem do cofre (assets/cofre.png) ---
+        try:
+            module_dir = os.path.dirname(os.path.abspath(__file__))
+            cofre_path = os.path.join(module_dir, "assets", "cofre.png")
+            if os.path.exists(cofre_path):
+                self.cofre_img = pygame.image.load(cofre_path).convert_alpha()
+            else:
+                self.cofre_img = None
+        except Exception:
+            self.cofre_img = None
+        # -----------------------------------------------------------------
         self.level_timer = 45.0
         self.safe_open_requirement = 1.5
         self.safe_processing = False
@@ -254,12 +265,28 @@ class Fase1:
                 if self.player_rect.colliderect(w):
                     if dx > 0: self.player_rect.right = w.left
                     if dx < 0: self.player_rect.left = w.right
+
+            # --- MÍNIMA ADIÇÃO: colisão X com o cofre ---
+            if self.player_rect.colliderect(self.safe_rect):
+                if dx > 0:
+                    self.player_rect.right = self.safe_rect.left
+                elif dx < 0:
+                    self.player_rect.left = self.safe_rect.right
+            # -----------------------------------------------------------------
             
             self.player_rect.y += (dy/mag) * speed * dt
             for w in self.walls:
                 if self.player_rect.colliderect(w):
                     if dy > 0: self.player_rect.bottom = w.top
                     if dy < 0: self.player_rect.top = w.bottom
+
+            # --- MÍNIMA ADIÇÃO: colisão Y com o cofre ---
+            if self.player_rect.colliderect(self.safe_rect):
+                if dy > 0:
+                    self.player_rect.bottom = self.safe_rect.top
+                elif dy < 0:
+                    self.player_rect.top = self.safe_rect.bottom
+            # -----------------------------------------------------------------
 
         # --- Atualiza flag de movimento para animação (MÍNIMA ALTERAÇÃO) ---
         self.player_moving = (dx != 0 or dy != 0)
@@ -344,7 +371,19 @@ class Fase1:
                 self.draw_text("SENHA:", self.paper_rect.x + 6, self.paper_rect.y + 6, (0,0,0))
                 self.draw_text(self.code, self.paper_rect.x + 6, self.paper_rect.y + 24, (0,0,0))
 
-        pygame.draw.rect(self.screen, SAFE_COLOR, self.safe_rect)
+        # Substitui retângulo do cofre pela imagem (fallback para retângulo se imagem ausente)
+        if getattr(self, "cofre_img", None):
+            try:
+                cofre_scaled = pygame.transform.scale(
+                    self.cofre_img,
+                    (self.safe_rect.width, self.safe_rect.height)
+                )
+                self.screen.blit(cofre_scaled, self.safe_rect.topleft)
+            except Exception:
+                pygame.draw.rect(self.screen, SAFE_COLOR, self.safe_rect)
+        else:
+            pygame.draw.rect(self.screen, SAFE_COLOR, self.safe_rect)
+
         self.draw_text("COFRE", self.safe_rect.x-5, self.safe_rect.y-25)
 
         # --- DESENHO DO JOGADOR: sprite se possível, senão retângulo (MÍNIMA ALTERAÇÃO) ---
@@ -369,7 +408,7 @@ class Fase1:
         else:
             # fallback original (retângulo)
             pygame.draw.rect(self.screen, (200,60,80), self.player_rect)
-        # ------------------------------------------------------------------------------
+        # ------------------------------------------------------------------------------ 
 
         if self.player_rect.colliderect(self.safe_rect.inflate(28,28)):
             if not self.has_seen_code:
