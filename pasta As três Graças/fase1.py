@@ -1,7 +1,7 @@
 import pygame
 import math
 import random
-import os  # ADIÇÃO MÍNIMA: necessário para construir o path do asset
+import os 
 
 # Configurações locais da Fase 1
 WHITE = (240,240,240)
@@ -38,27 +38,20 @@ class Fase1:
             for p in walk_paths:
                 if os.path.exists(p):
                     self.player_walk.append(pygame.image.load(p).convert_alpha())
-            # if there is at least one walk frame, accept images
+
             if len(self.player_walk) >= 1:
                 self._images_ok = True
             else:
-                # allow single idle only (still ok: idle will be used)
-                self._images_ok = True  # still ok, but walk will fallback to idle frame index 0
+                self._images_ok = True
                 self.player_walk = [self.player_idle]
         except Exception:
-            # fallback: keeps _images_ok False and code will draw rect
             self._images_ok = False
-            try:
-                # ensure attributes exist even if images missing
-                self.player_idle
-                self.player_walk
-            except Exception:
-                self.player_idle = None
-                self.player_walk = []
+            self.player_idle = None
+            self.player_walk = []
 
         self.player_frame = 0
         self.player_anim_timer = 0.0
-        self.player_anim_speed = 0.12  # segundos por frame (ajustável)
+        self.player_anim_speed = 0.12
         self.player_moving = False
         # --------------------------------------------
 
@@ -78,19 +71,15 @@ class Fase1:
         self.code = str(random.randint(1000, 9999))
         self.has_seen_code = False
 
-        # SAFE / COFRE
+        # COFRE
         self.safe_rect = pygame.Rect(500, 500, 50, 50)
-        # --- MÍNIMA ADIÇÃO: carregar imagem do cofre (assets/cofre.png) ---
         try:
             module_dir = os.path.dirname(os.path.abspath(__file__))
             cofre_path = os.path.join(module_dir, "assets", "cofre.png")
-            if os.path.exists(cofre_path):
-                self.cofre_img = pygame.image.load(cofre_path).convert_alpha()
-            else:
-                self.cofre_img = None
+            self.cofre_img = pygame.image.load(cofre_path).convert_alpha() if os.path.exists(cofre_path) else None
         except Exception:
             self.cofre_img = None
-        # -----------------------------------------------------------------
+
         self.level_timer = 45.0
         self.safe_open_requirement = 1.5
         self.safe_processing = False
@@ -114,51 +103,27 @@ class Fase1:
 
         self._prev_num_keys = set()
 
-        # --- MUDANÇA MÍNIMA E MAIS ROBUSTA: som do cronômetro com curva exponencial dramática ---
+        # --- SOM DO CRONÔMETRO ---
         self.timer_sound = None
-        self.timer_base_volume = 0.18  # volume inicial (0.0 - 1.0)
-        self.timer_max_volume = 1.0    # volume máximo quando o tempo acabar
-        self._initial_level_timer = self.level_timer  # usado para calcular progresso
+        self.timer_channel = None  
+        self.timer_base_volume = 0.18
+        self.timer_max_volume = 1.0
+        self._initial_level_timer = self.level_timer
 
         try:
-            if pygame.mixer.get_init() is None:
-                try:
-                    pygame.mixer.init()
-                except Exception as e:
-                    print("Fase1: pygame.mixer.init() falhou:", e)
-
             module_dir = os.path.dirname(os.path.abspath(__file__))
-            candidates = [
-                os.path.join(module_dir, "assets", "cronometro.mp3"),
-                os.path.join(module_dir, "assets", "cronometro.ogg"),
-                os.path.join(module_dir, "assets", "cronometro.wav"),
-                os.path.join(module_dir, "..", "assets", "cronometro.mp3"),
-            ]
-            cron_path = None
-            for p in candidates:
-                if os.path.exists(p):
-                    cron_path = p
-                    break
+            cron_path = os.path.join(module_dir, "assets", "cronometro.mp3")
 
-            if cron_path is None:
-                print("Fase1: arquivo de som 'cronometro' não encontrado em candidates:", candidates)
-            else:
-                if pygame.mixer.get_init() is not None:
-                    try:
-                        self.timer_sound = pygame.mixer.Sound(cron_path)
-                        try:
-                            self.timer_sound.set_volume(self.timer_base_volume)
-                        except Exception:
-                            pass
-                        try:
-                            self.timer_sound.play(loops=-1)
-                            print("Fase1: tocando som de cronômetro:", cron_path)
-                        except Exception as e:
-                            print("Fase1: falha ao play() do timer_sound:", e)
-                    except Exception as e:
-                        print("Fase1: falha ao carregar Sound:", e)
-                else:
-                    print("Fase1: pygame.mixer não inicializado; não será possível tocar som.")
+            if os.path.exists(cron_path) and pygame.mixer.get_init():
+                try:
+                    self.timer_sound = pygame.mixer.Sound(cron_path)
+                    self.timer_sound.set_volume(self.timer_base_volume)
+                    self.timer_channel = self.timer_sound.play(loops=-1)
+                except Exception as e:
+                    print("Fase1: erro ao carregar/tocar cronometro:", e)
+                    self.timer_sound = None
+                    self.timer_channel = None
+
         except Exception as e:
             print("Fase1: erro ao configurar timer_sound:", e)
             self.timer_sound = None
@@ -206,91 +171,63 @@ class Fase1:
         # decrementa tempo
         self.level_timer -= dt
 
-        # --- atualiza o volume do timer com curva exponencial dramática (MÍNIMA ALTERAÇÃO) ---
+        # atualiza volume do cronômetro
         if self.timer_sound and self._initial_level_timer > 0:
-            # progresso linear 0->1 (tempo passado / total)
             progress = max(0.0, min(1.0, (self._initial_level_timer - self.level_timer) / self._initial_level_timer))
-
-            # CURVA EXPONENCIAL NORMALIZADA
-            # k controla a "agressividade" da exponencial; maior k = aumento mais abrupto perto do fim
-            k = 4.2
-            # eased exponencial normalizada em [0,1]
-            try:
-                eased = (math.exp(k * progress) - 1.0) / (math.exp(k) - 1.0)
-            except Exception:
-                eased = progress  # fallback seguro
-
-            # Para manter ainda mais ênfase nos últimos 10s, podemos combinar com um boost local
-            if self.level_timer <= 10.0:
-                # multiplicador extra nos últimos 10s (suaviza saturação)
-                local_progress = 1.0 - (max(0.0, self.level_timer) / 10.0)
-                eased = max(eased, 0.7 + 0.3 * (local_progress ** 2))
-
-            new_volume = self.timer_base_volume + (self.timer_max_volume - self.timer_base_volume) * eased
-            new_volume = max(0.0, min(1.0, new_volume))
-            try:
-                self.timer_sound.set_volume(new_volume)
-            except Exception:
-                pass
-        # -------------------------------------------------------------------------
+            eased = (math.exp(4.2 * progress) - 1.0) / (math.exp(4.2) - 1.0)
+            volume = self.timer_base_volume + (self.timer_max_volume - self.timer_base_volume) * eased
+            self.timer_sound.set_volume(max(0.0, min(1.0, volume)))
 
         if self.level_timer <= 0:
-            # PARA O SOM QUANDO ACABA O TEMPO (MÍNIMA ALTERAÇÃO)
-            if self.timer_sound:
-                try:
-                    self.timer_sound.stop()
-                except Exception:
-                    pass
+            if self.timer_channel:
+                self.timer_channel.stop()
             return "LOSE_TIME"
 
         keys = pygame.key.get_pressed()
         dx = dy = 0
         speed = 220
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]: dx -= 1
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]: dx += 1
-        if keys[pygame.K_UP] or keys[pygame.K_w]: dy -= 1
-        if keys[pygame.K_DOWN] or keys[pygame.K_s]: dy += 1
-        
-        # <<< ADIÇÃO MÍNIMA: atualiza facing com base em dx >>>
+
+        # trava movimento enquanto digita a senha
+        if not self.entering_code:
+            if keys[pygame.K_LEFT] or keys[pygame.K_a]: dx -= 1
+            if keys[pygame.K_RIGHT] or keys[pygame.K_d]: dx += 1
+            if keys[pygame.K_UP] or keys[pygame.K_w]: dy -= 1
+            if keys[pygame.K_DOWN] or keys[pygame.K_s]: dy += 1
+
+        # atualiza facing com base em dx
         if dx < 0:
             self.facing_left = True
         elif dx > 0:
             self.facing_left = False
-        # <<< fim da adição >>>
 
         if dx or dy:
             mag = math.hypot(dx, dy)
-            self.player_rect.x += (dx/mag) * speed * dt
-            for w in self.walls:
-                if self.player_rect.colliderect(w):
-                    if dx > 0: self.player_rect.right = w.left
-                    if dx < 0: self.player_rect.left = w.right
+            if mag != 0:  
+                self.player_rect.x += (dx/mag) * speed * dt
+                for w in self.walls:
+                    if self.player_rect.colliderect(w):
+                        if dx > 0: self.player_rect.right = w.left
+                        if dx < 0: self.player_rect.left = w.right
 
-            # --- MÍNIMA ADIÇÃO: colisão X com o cofre ---
-            if self.player_rect.colliderect(self.safe_rect):
-                if dx > 0:
-                    self.player_rect.right = self.safe_rect.left
-                elif dx < 0:
-                    self.player_rect.left = self.safe_rect.right
-            # -----------------------------------------------------------------
-            
-            self.player_rect.y += (dy/mag) * speed * dt
-            for w in self.walls:
-                if self.player_rect.colliderect(w):
-                    if dy > 0: self.player_rect.bottom = w.top
-                    if dy < 0: self.player_rect.top = w.bottom
+                if self.player_rect.colliderect(self.safe_rect):
+                    if dx > 0:
+                        self.player_rect.right = self.safe_rect.left
+                    elif dx < 0:
+                        self.player_rect.left = self.safe_rect.right
+                
+                self.player_rect.y += (dy/mag) * speed * dt
+                for w in self.walls:
+                    if self.player_rect.colliderect(w):
+                        if dy > 0: self.player_rect.bottom = w.top
+                        if dy < 0: self.player_rect.top = w.bottom
 
-            # --- MÍNIMA ADIÇÃO: colisão Y com o cofre ---
-            if self.player_rect.colliderect(self.safe_rect):
-                if dy > 0:
-                    self.player_rect.bottom = self.safe_rect.top
-                elif dy < 0:
-                    self.player_rect.top = self.safe_rect.bottom
-            # -----------------------------------------------------------------
+                if self.player_rect.colliderect(self.safe_rect):
+                    if dy > 0:
+                        self.player_rect.bottom = self.safe_rect.top
+                    elif dy < 0:
+                        self.player_rect.top = self.safe_rect.bottom
 
-        # --- Atualiza flag de movimento para animação (MÍNIMA ALTERAÇÃO) ---
         self.player_moving = (dx != 0 or dy != 0)
-        # -------------------------------------------------------------------
 
         if self.paper_hidden and self.player_rect.colliderect(self.hiding_spot):
             if keys[pygame.K_SPACE]:
@@ -316,20 +253,14 @@ class Fase1:
             if self.safe_timer >= self.safe_open_requirement:
                 self.safe_processing = False
                 if self.typed_code == self.code:
-                    self.has_key = True
-                    # PARA O SOM AO PASSAR DE FASE (MÍNIMA ALTERAÇÃO)
-                    if self.timer_sound:
-                        try:
-                            self.timer_sound.stop()
-                        except Exception:
-                            pass
+                    if self.timer_channel:
+                        self.timer_channel.stop()
                     return "NEXT"
                 else:
                     self.typed_code = ""
                     self.entering_code = False
                     self.level_timer = max(0.0, self.level_timer - 4.0)
 
-        # --- Animação do jogador (usa dt; mínima alteração aqui) ---
         if self._images_ok:
             if self.player_moving:
                 self.player_anim_timer += dt
@@ -337,10 +268,8 @@ class Fase1:
                     self.player_anim_timer = 0.0
                     self.player_frame = (self.player_frame + 1) % len(self.player_walk)
             else:
-                # reset para frame 0 quando parado
                 self.player_frame = 0
                 self.player_anim_timer = 0.0
-        # -----------------------------------------------------------------
 
         return None
 
@@ -351,7 +280,6 @@ class Fase1:
         for spot in self.hiding_spots:
             pygame.draw.rect(self.screen, (20,25,25), spot)
 
-        # ---------------- ADIÇÃO ÚNICA ----------------
         # mensagem contextual de procura
         if self.paper_hidden:
             for spot in self.hiding_spots:
@@ -363,7 +291,6 @@ class Fase1:
                         HINT_COLOR
                     )
                     break
-        # ----------------------------------------------
 
         if not self.paper_hidden:
             pygame.draw.rect(self.screen, PAPER_COLOR, self.paper_rect)
@@ -393,22 +320,19 @@ class Fase1:
             else:
                 sprite = self.player_idle
 
-            # escala o sprite para o tamanho do rect do jogador para manter colisões iguais
             try:
                 sprite_scaled = pygame.transform.smoothscale(sprite, (self.player_rect.width, self.player_rect.height))
             except Exception:
                 sprite_scaled = pygame.transform.scale(sprite, (self.player_rect.width, self.player_rect.height))
 
-            # <<< ADIÇÃO MÍNIMA: flip horizontal quando estiver virado à esquerda >>>
+            #flip horizontal quando estiver virado à esquerda 
             if self.facing_left:
                 sprite_scaled = pygame.transform.flip(sprite_scaled, True, False)
-            # <<< fim da adição >>>
 
             self.screen.blit(sprite_scaled, self.player_rect.topleft)
         else:
-            # fallback original (retângulo)
             pygame.draw.rect(self.screen, (200,60,80), self.player_rect)
-        # ------------------------------------------------------------------------------ 
+        # ------------------------------------------------------------------------------
 
         if self.player_rect.colliderect(self.safe_rect.inflate(28,28)):
             if not self.has_seen_code:
