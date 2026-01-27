@@ -6,10 +6,10 @@ import os
 # Configurações locais da Fase 1
 WHITE = (240,240,240)
 ALARM_COLOR = (220,20,20)
-HINT_COLOR = (180,180,255)
+HINT_COLOR = (238, 229, 190)
 SAFE_COLOR = (50, 50, 50)
-PAPER_COLOR = (255, 255, 200)
-WALL_COLOR = (80,80,80)
+PAPER_COLOR = (238, 229, 190)
+WALL_COLOR = (25,25,25)
 
 class Fase1:
     def __init__(self, screen, font):
@@ -23,12 +23,20 @@ class Fase1:
             img = pygame.image.load(floor_path).convert()
 
             # deixa o tile menor (ajuste aqui o tamanho)
-            self.floor_tile = pygame.transform.smoothscale(img, (64, 64))
+            self.floor_tile = pygame.transform.smoothscale(img, (74, 74))
         except Exception:
             self.floor_tile = None
 
         self.floor_overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-        self.floor_overlay.fill((0, 0, 0, 90))
+        self.floor_overlay.fill((0, 0, 0, 100))
+
+        try:
+            module_dir = os.path.dirname(os.path.abspath(__file__))
+            timer_path = os.path.join(module_dir, "assets", "timer_box.png")
+            self.timer_box = pygame.image.load(timer_path).convert_alpha()
+        except Exception:
+            self.timer_box = None
+
 
         # Estado do jogador
         self.player_rect = pygame.Rect(50, 50, 64, 96)
@@ -440,7 +448,7 @@ class Fase1:
             pygame.draw.rect(self.screen, WALL_COLOR, w)
 
         for spot in self.hiding_spots:
-            pygame.draw.rect(self.screen, (20,25,25), spot)
+            pygame.draw.rect(self.screen, PAPER_COLOR, spot)
 
         # mensagem contextual de procura
         if self.paper_hidden:
@@ -520,6 +528,22 @@ class Fase1:
         if self.safe_processing:
             prog = (self.safe_timer / self.safe_open_requirement) * 200
             pygame.draw.rect(self.screen, WHITE, (self.width//2-100, self.height-80, 200, 15), 2)
-            pygame.draw.rect(self.screen, HINT_COLOR, (self.width//2-100, self.height-80, prog, 15))
+            pygame.draw.rect(self.screen, PAPER_COLOR, (self.width//2-100, self.height-80, prog, 15))
 
-        self.draw_text(f"TEMPO: {int(self.level_timer)}s", self.width//2 - 40, 30, ALARM_COLOR)
+        if self.timer_box:
+            box_w, box_h = 120, 110  
+            box = pygame.transform.smoothscale(self.timer_box, (box_w, box_h))
+            x = self.width - 16 - box_w - 12
+            y = 16
+
+            self.screen.blit(box, (x, y))
+
+            tempo_font = pygame.font.SysFont("consolas", 30, bold=True)
+            tempo_txt = tempo_font.render(f"{int(self.level_timer)}", True, (255,255,255))
+            self.screen.blit(
+                tempo_txt,
+                (x + box_w//2 - tempo_txt.get_width()//2,
+                 y + box_h//2 - tempo_txt.get_height()//2)
+            )
+        else:
+            self.draw_text(f"{int(self.level_timer)}", self.width//2 - 40, 30, ALARM_COLOR)
