@@ -150,7 +150,8 @@ class Fase1:
         self.has_seen_code = False
 
         # COFRE
-        self.safe_rect = pygame.Rect(500, 500, 50, 50)
+        self.safe_rect = pygame.Rect(self.width - 16 - 140, self.height - 16 - 140, 140, 140)
+
         try:
             module_dir = os.path.dirname(os.path.abspath(__file__))
             cofre_path = os.path.join(module_dir, "assets", "cofre.png")

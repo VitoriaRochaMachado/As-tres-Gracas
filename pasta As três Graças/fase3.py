@@ -119,6 +119,19 @@ def _load_images(base_dir=None):
 
     return GAME_OVER_BG, VICTORY_BG, PRESA_VIDEO_BG
 
+def _trim_sprite(surf):
+    try:
+        mask = pygame.mask.from_surface(surf)
+        rects = mask.get_bounding_rects()
+        if not rects:
+            return surf
+        r = rects[0].copy()
+        for rr in rects[1:]:
+            r.union_ip(rr)
+        return surf.subsurface(r).copy()
+    except Exception:
+        return surf
+
 # ----- ENTITIES -----
 class Player:
     def __init__(self, x,y):
@@ -134,6 +147,12 @@ class Player:
         self.images_ok = False
         self.idle_image = None
         self.walk_images = []
+        self.idle_dir = {}
+        self.walk_dir = {}
+        self.base_w = 1
+        self.base_h = 1
+        self.facing = "down"
+        self._prev_facing = self.facing
         self.frame = 0
         self.anim_timer = 0.0
         self.anim_speed = 0.12
@@ -150,7 +169,8 @@ class Player:
         if keys[pygame.K_DOWN] or keys[pygame.K_s]: dy += 1
         if dx != 0 or dy != 0:
             l = math.hypot(dx,dy)
-            dx /= l; dy /= l
+            if l != 0:
+                dx /= l; dy /= l
 
         # <<< ADIÇÃO MÍNIMA: atualiza facing com base em dx >>>
         if dx < 0:
@@ -158,6 +178,18 @@ class Player:
         elif dx > 0:
             self.facing_left = False
         # <<< fim da adição >>>
+
+        if dx != 0 or dy != 0:
+            if abs(dx) > abs(dy):
+                if dx < 0:
+                    self.facing = "left"
+                elif dx > 0:
+                    self.facing = "right"
+            else:
+                if dy < 0:
+                    self.facing = "up"
+                elif dy > 0:
+                    self.facing = "down"
 
         # atualiza flag de movimento (usada para animação)
         self.moving = (dx != 0 or dy != 0)
@@ -178,23 +210,34 @@ class Player:
     def draw(self, surf):
         # Se houver sprites, desenha sprite escalado; senão, retângulo (fallback)
         if self.images_ok and (self.idle_image is not None):
-            if self.moving and len(self.walk_images) >= 1:
-                sprite = self.walk_images[self.frame]
+            if self.moving:
+                frames = self.walk_dir.get(self.facing)
+                if frames:
+                    sprite = frames[self.frame % len(frames)]
+                elif len(self.walk_images) >= 1:
+                    sprite = self.walk_images[self.frame]
+                else:
+                    sprite = self.idle_image
             else:
-                sprite = self.idle_image
+                sprite = self.idle_dir.get(self.facing, self.idle_image)
 
-            # escala para o tamanho do rect (mantém colisões)
+            w, h = sprite.get_size()
+            scale = min(self.rect.width / self.base_w, self.rect.height / self.base_h)
+            new_size = (max(1, int(w * scale)), max(1, int(h * scale)))
+
             try:
-                sprite_scaled = pygame.transform.smoothscale(sprite, (self.rect.width, self.rect.height))
+                sprite_scaled = pygame.transform.smoothscale(sprite, new_size)
             except Exception:
-                sprite_scaled = pygame.transform.scale(sprite, (self.rect.width, self.rect.height))
+                sprite_scaled = pygame.transform.scale(sprite, new_size)
 
             # <<< ADIÇÃO MÍNIMA: flip horizontal quando estiver virado à esquerda >>>
-            if self.facing_left:
+            if self.facing_left and (self.facing not in self.walk_dir) and (self.facing not in self.idle_dir):
                 sprite_scaled = pygame.transform.flip(sprite_scaled, True, False)
             # <<< fim da adição >>>
 
-            surf.blit(sprite_scaled, self.rect.topleft)
+            x = self.rect.centerx - sprite_scaled.get_width() // 2
+            y = self.rect.centery - sprite_scaled.get_height() // 2
+            surf.blit(sprite_scaled, (x, y))
         else:
             pygame.draw.rect(surf, GERLUCE_COLOR, self.rect)
             if self.mask:
@@ -386,26 +429,79 @@ def run(screen, clock, font, base_dir=None):
     player_idle = None
     player_walk = []
     images_ok = False
+    player_idle_dir = {}
+    player_walk_dir = {}
+    base_w = 1
+    base_h = 1
     try:
         if base_dir:
             player_dir = os.path.join(base_dir, "assets", "player")
         else:
             player_dir = os.path.join("assets", "player")
+
         idle_path = os.path.join(player_dir, "idle.png")
         if os.path.exists(idle_path):
             player_idle = pygame.image.load(idle_path).convert_alpha()
+
+        idle_files = {
+            "down": "idledown.png",
+            "up": "idleup.png",
+            "left": "idleleft.png",
+            "right": "idleright.png",
+        }
+        for d, fn in idle_files.items():
+            p = os.path.join(player_dir, fn)
+            if os.path.exists(p):
+                player_idle_dir[d] = pygame.image.load(p).convert_alpha()
+
+        for d in ["down","up","left","right"]:
+            frames = []
+            for i in range(3):
+                p = os.path.join(player_dir, f"walk_{i}{d}.png")
+                if os.path.exists(p):
+                    frames.append(pygame.image.load(p).convert_alpha())
+            if frames:
+                player_walk_dir[d] = frames
+
+        if player_idle is None:
+            player_idle = player_idle_dir.get("down", None)
+
         # tenta carregar até 8 frames de walk (para ser tolerante)
         for i in range(8):
             p = os.path.join(player_dir, f"walk_{i}.png")
             if os.path.exists(p):
                 player_walk.append(pygame.image.load(p).convert_alpha())
+
         if player_idle is not None:
-            if len(player_walk) >= 1:
+            if len(player_walk) >= 1 or len(player_walk_dir) >= 1:
                 images_ok = True
             else:
-                # aceita idle apenas; usa idle como único frame de walk
                 player_walk = [player_idle]
                 images_ok = True
+
+        if player_idle is not None:
+            player_idle = _trim_sprite(player_idle)
+
+        for k in list(player_idle_dir.keys()):
+            player_idle_dir[k] = _trim_sprite(player_idle_dir[k])
+
+        for k in list(player_walk_dir.keys()):
+            player_walk_dir[k] = [_trim_sprite(s) for s in player_walk_dir[k]]
+
+        player_walk = [_trim_sprite(s) for s in player_walk]
+
+        all_sprites = []
+        if player_idle is not None:
+            all_sprites.append(player_idle)
+        all_sprites += list(player_idle_dir.values())
+        for frames in player_walk_dir.values():
+            all_sprites += list(frames)
+        all_sprites += player_walk
+
+        if all_sprites:
+            base_w = max(s.get_width() for s in all_sprites)
+            base_h = max(s.get_height() for s in all_sprites)
+
     except Exception:
         images_ok = False
     # --------------------------------------------------------------------
@@ -423,9 +519,14 @@ def run(screen, clock, font, base_dir=None):
     player.images_ok = images_ok
     player.idle_image = player_idle
     player.walk_images = player_walk
+    player.idle_dir = player_idle_dir
+    player.walk_dir = player_walk_dir
+    player.base_w = base_w
+    player.base_h = base_h
     player.frame = 0
     player.anim_timer = 0.0
     player.anim_speed = 0.12
+    player._prev_facing = player.facing
 
     statue = Statue(600, 220)
     guards = [
@@ -455,10 +556,16 @@ def run(screen, clock, font, base_dir=None):
         # animação do jogador (usa dt; mínima alteração: mantém no loop de run)
         if player.images_ok:
             if player.moving:
+                if player.facing != player._prev_facing:
+                    player.frame = 0
+                    player.anim_timer = 0.0
+                    player._prev_facing = player.facing
+
                 player.anim_timer += dt
                 if player.anim_timer >= player.anim_speed:
                     player.anim_timer = 0.0
-                    player.frame = (player.frame + 1) % len(player.walk_images)
+                    frames = player.walk_dir.get(player.facing, player.walk_images)
+                    player.frame = (player.frame + 1) % len(frames)
             else:
                 player.frame = 0
                 player.anim_timer = 0.0

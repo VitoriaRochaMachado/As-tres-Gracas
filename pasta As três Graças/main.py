@@ -256,9 +256,11 @@ def tela_inicial(screen, clock):
 # ---------------- MAIN ----------------
 def main():
     global GAME_OVER_SOUND  # usaremos o global definido acima
+    global WIDTH, HEIGHT
 
     pygame.init()
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+    WIDTH, HEIGHT = screen.get_size()
     pygame.display.set_caption("As Três Graças")
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("consolas", 20)
