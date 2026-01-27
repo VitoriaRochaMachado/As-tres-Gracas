@@ -20,6 +20,7 @@ class Fase1:
         # Estado do jogador
         self.player_rect = pygame.Rect(50, 50, 64, 96)
         self.facing_left = False
+        self.facing = "down"
 
         # --- SPRITES DO JOGADOR ---
         self._images_ok = False
@@ -29,10 +30,25 @@ class Fase1:
             idle_path = os.path.join(player_dir, "idle.png")
             walk_paths = [os.path.join(player_dir, f"walk_{i}.png") for i in range(4)]
 
+            self.player_dir = {}
+            dir_files = {
+                "down": "walk_0down.png",
+                "up": "walk_0up.png",
+                "left": "walk_0left.png",
+                "right": "walk_0right.png",
+            }
+            for d, fn in dir_files.items():
+                p = os.path.join(player_dir, fn)
+                if os.path.exists(p):
+                    self.player_dir[d] = pygame.image.load(p).convert_alpha()
+
             if os.path.exists(idle_path):
                 self.player_idle = pygame.image.load(idle_path).convert_alpha()
             else:
-                raise FileNotFoundError("idle not found")
+                if "down" in self.player_dir:
+                    self.player_idle = self.player_dir["down"]
+                else:
+                    raise FileNotFoundError("idle not found")
 
             self.player_walk = []
             for p in walk_paths:
@@ -48,6 +64,7 @@ class Fase1:
             self._images_ok = False
             self.player_idle = None
             self.player_walk = []
+            self.player_dir = {}
 
         self.player_frame = 0
         self.player_anim_timer = 0.0
@@ -195,10 +212,19 @@ class Fase1:
             if keys[pygame.K_DOWN] or keys[pygame.K_s]: dy += 1
 
         # atualiza facing com base em dx
-        if dx < 0:
-            self.facing_left = True
-        if dx > 0:
-            self.facing_left = False
+        if dx != 0 or dy != 0:
+            if abs(dx) > abs(dy):
+                if dx < 0:
+                    self.facing_left = True
+                    self.facing = "left"
+                elif dx > 0:
+                    self.facing_left = False
+                    self.facing = "right"
+            else:
+                if dy < 0:
+                    self.facing = "up"
+                elif dy > 0:
+                    self.facing = "down"
 
         if dx or dy:
             mag = math.hypot(dx, dy)
@@ -316,9 +342,12 @@ class Fase1:
         # --- DESENHO DO JOGADOR: sprite se possível, senão retângulo  ---
         if self._images_ok and (self.player_idle is not None):
             if self.player_moving:
-                sprite = self.player_walk[self.player_frame]
+                if self.facing in self.player_dir:
+                    sprite = self.player_dir[self.facing]
+                else:
+                    sprite = self.player_walk[self.player_frame]
             else:
-                sprite = self.player_idle
+                sprite = self.player_dir.get(self.facing, self.player_idle)
 
             w, h = sprite.get_size()
             if w > 0 and h > 0:
@@ -333,7 +362,7 @@ class Fase1:
                 sprite_scaled = pygame.transform.scale(sprite, new_size)
 
             #flip horizontal quando estiver virado à esquerda 
-            if self.facing_left:
+            if self.facing_left and (self.facing not in self.player_dir):
                 sprite_scaled = pygame.transform.flip(sprite_scaled, True, False)
 
             x = self.player_rect.centerx - sprite_scaled.get_width() // 2
