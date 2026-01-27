@@ -1,4 +1,4 @@
-# fase2.py — câmeras com varredura (sweep) — mínima alteração sobre a versão anterior
+# fase2.py — câmeras com varredura 
 import pygame
 import sys
 import math
@@ -11,7 +11,7 @@ FPS = 60
 # cores
 WHITE = (240,240,240)
 BG_COLOR = (18,18,26)
-WALL_COLOR = (80,80,80)
+WALL_COLOR = (25,25,25)
 CAM_COLOR = (120,120,200)
 PANEL_COLOR = (200,160,60)
 PLAYER_COLOR = (200,60,80)
@@ -305,23 +305,78 @@ class Camera:
 def draw_text(surf, txt, x, y, font, color=WHITE):
     surf.blit(font.render(txt, True, color), (x,y))
 
-def build_walls():
+def build_walls(sw, sh):
     return [
-        pygame.Rect(0,0,WIDTH,16),
-        pygame.Rect(0,0,16,HEIGHT),
-        pygame.Rect(0,HEIGHT-16,WIDTH,16),
-        pygame.Rect(WIDTH-16,0,16,HEIGHT),
-        pygame.Rect(240,100,16,440),
-        pygame.Rect(500,100,16,440),
-        pygame.Rect(760,100,16,440),
+        pygame.Rect(0,0,sw,16),
+        pygame.Rect(0,0,16,sh),
+        pygame.Rect(0,sh-16,sw,16),
+        pygame.Rect(sw-16,0,16,sh),
+        pygame.Rect(int(sw*0.234),int(sh*0.156),16,int(sh*0.688)),
+        pygame.Rect(int(sw*0.488),int(sh*0.156),16,int(sh*0.688)),
+        pygame.Rect(int(sw*0.742),int(sh*0.156),16,int(sh*0.688)),
     ]
+
 
 # ----- RUN -----
 def run(screen, clock, font, base_dir=None):
+    SW, SH = screen.get_size()
     alarm_sound, sabotage_sound = _load_sounds(base_dir)
     sprites_ok, idle_img, walk_imgs, idle_dir, walk_dir, base_w, base_h = _load_player_sprites(base_dir)
 
-    # --- MÚSICA DE FUNDO DA FASE 2 (ADIÇÃO MÍNIMA) ---
+    # --- PISO + OVERLAY + TIMER BOX (VISUAL) ---
+    try:
+        if base_dir:
+            floor_path = os.path.join(base_dir, "assets", "piso_madeira.png")
+            timer_box_path = os.path.join(base_dir, "assets", "timer_box.png")
+        else:
+            floor_path = os.path.join("assets", "piso_madeira.png")
+            timer_box_path = os.path.join("assets", "timer_box.png")
+
+        floor_img = pygame.image.load(floor_path).convert()
+        floor_tile = pygame.transform.smoothscale(floor_img, (74, 74))
+    except Exception:
+        floor_tile = None
+
+    floor_overlay = pygame.Surface((SW, SH), pygame.SRCALPHA)
+    floor_overlay.fill((0, 0, 0, 100))
+
+    try:
+        timer_box_img = pygame.image.load(timer_box_path).convert_alpha()
+    except Exception:
+        timer_box_img = None
+
+    def draw_floor_and_walls(walls):
+        screen.fill(BG_COLOR)
+
+        if floor_tile:
+            tw, th = floor_tile.get_width(), floor_tile.get_height()
+            for yy in range(0, SH, th):
+                for xx in range(0, SW, tw):
+                    screen.blit(floor_tile, (xx, yy))
+            screen.blit(floor_overlay, (0, 0))
+
+        for w in walls:
+            pygame.draw.rect(screen, WALL_COLOR, w)
+
+    def draw_timer_box(seconds_left):
+        if timer_box_img:
+            box_w, box_h = 120, 110
+            box = pygame.transform.smoothscale(timer_box_img, (box_w, box_h))
+            x = SW - 16 - box_w - 12
+            y = 16
+            screen.blit(box, (x, y))
+
+            tempo_font = pygame.font.SysFont("consolas", 30, bold=True)
+            tempo_txt = tempo_font.render(f"{int(seconds_left)}", True, (255,255,255))
+            screen.blit(
+                tempo_txt,
+                (x + box_w//2 - tempo_txt.get_width()//2,
+                 y + box_h//2 - tempo_txt.get_height()//2)
+            )
+        else:
+            draw_text(screen, f"TEMPO: {int(seconds_left)}s", 18, 18, font, ALARM_COLOR)
+
+    # --- MÚSICA DE FUNDO DA FASE 2  ---
     try:
         if base_dir:
             fase2_music_path = os.path.join(base_dir, "assets", "som_fase2.mp3")
@@ -351,13 +406,13 @@ def run(screen, clock, font, base_dir=None):
                 alarm_sound.stop()
         except Exception:
             pass
-        # também para a música de fundo (adicional mínimo)
+        # também para a música de fundo 
         try:
             pygame.mixer.music.stop()
         except Exception:
             pass
 
-    walls = build_walls()
+    walls = build_walls(SW, SH)
     player = Player(80, HEIGHT//2)
     player.images_ok = sprites_ok
     player.idle = idle_img
@@ -444,14 +499,12 @@ def run(screen, clock, font, base_dir=None):
         if sabotage_success:
             sabotage_success_time += dt
             # draw a quick message frame
-            screen.fill(BG_COLOR)
-            for w in walls:
-                pygame.draw.rect(screen, WALL_COLOR, w)
+            draw_floor_and_walls(walls)
             for c in cams:
                 c.draw(screen)
             pygame.draw.rect(screen, PANEL_COLOR, panel)
             player.draw(screen)
-            draw_text(screen, f"TEMPO: {int(timer)}s", 18, 18, font, ALARM_COLOR)
+            draw_timer_box(timer)
             draw_text(screen, "SABOTAGEM: SUCESSO", WIDTH//2 - 120, HEIGHT//2 - 10, font, HINT_COLOR)
             pygame.display.flip()
             if sabotage_success_time >= SHOW_SABOTAGE_MSG:
@@ -485,14 +538,12 @@ def run(screen, clock, font, base_dir=None):
         # if recorded, show message briefly then return RECORDED (main shows game over)
         if recorded:
             # show immediate message frame so player sees it
-            screen.fill(BG_COLOR)
-            for w in walls:
-                pygame.draw.rect(screen, WALL_COLOR, w)
+            draw_floor_and_walls(walls)
             for c in cams:
                 c.draw(screen)
             pygame.draw.rect(screen, PANEL_COLOR, panel)
             player.draw(screen)
-            draw_text(screen, f"TEMPO: {int(timer)}s", 18, 18, font, ALARM_COLOR)
+            draw_timer_box(timer)
             draw_text(screen, "CÂMERAS GRAVARAM", WIDTH//2 - 120, HEIGHT//2 - 10, font, ALARM_COLOR)
             pygame.display.flip()
             # stop alarm and music (we show message, then return)
@@ -506,16 +557,14 @@ def run(screen, clock, font, base_dir=None):
             return "CLEAN"
 
         # drawing normal frame
-        screen.fill(BG_COLOR)
-        for w in walls:
-            pygame.draw.rect(screen, WALL_COLOR, w)
+        draw_floor_and_walls(walls)
         for c in cams:
             c.draw(screen)
         pygame.draw.rect(screen, PANEL_COLOR, panel)
         player.draw(screen)
 
         # HUD / instructions
-        draw_text(screen, f"TEMPO: {int(timer)}s", 18, 18, font, ALARM_COLOR)
+        draw_timer_box(timer)
         draw_text(screen, "OBJETIVO: atravesse sem ser filmada", 18, 44, font, HINT_COLOR)
         draw_text(screen, "WASD / Setas: mover", 18, HEIGHT-70, font, WHITE)
         draw_text(screen, "SPACE: sabotar painel", 18, HEIGHT-44, font, WHITE)
