@@ -42,10 +42,24 @@ class Fase1:
                 if os.path.exists(p):
                     self.player_dir[d] = pygame.image.load(p).convert_alpha()
 
+            self.player_idle_dir = {}
+            idle_files = {
+                "down": "idledown.png",
+                "up": "idleup.png",
+                "left": "idleleft.png",
+                "right": "idleright.png",
+            }
+            for d, fn in idle_files.items():
+                p = os.path.join(player_dir, fn)
+                if os.path.exists(p):
+                    self.player_idle_dir[d] = pygame.image.load(p).convert_alpha()
+
             if os.path.exists(idle_path):
                 self.player_idle = pygame.image.load(idle_path).convert_alpha()
             else:
-                if "down" in self.player_dir:
+                if "down" in self.player_idle_dir:
+                    self.player_idle = self.player_idle_dir["down"]
+                elif "down" in self.player_dir:
                     self.player_idle = self.player_dir["down"]
                 else:
                     raise FileNotFoundError("idle not found")
@@ -60,11 +74,41 @@ class Fase1:
             else:
                 self._images_ok = True
                 self.player_walk = [self.player_idle]
+
+            for k in list(self.player_dir.keys()):
+                self.player_dir[k] = self._trim_sprite(self.player_dir[k])
+
+            for k in list(self.player_idle_dir.keys()):
+                self.player_idle_dir[k] = self._trim_sprite(self.player_idle_dir[k])
+
+            if self.player_idle is not None:
+                self.player_idle = self._trim_sprite(self.player_idle)
+
+            self.player_walk = [self._trim_sprite(s) for s in self.player_walk]
+
+            all_sprites = []
+            all_sprites += list(self.player_dir.values())
+            all_sprites += list(self.player_idle_dir.values())
+            if self.player_idle is not None:
+                all_sprites.append(self.player_idle)
+            for s in self.player_walk:
+                all_sprites.append(s)
+
+            if all_sprites:
+                self.base_w = max(s.get_width() for s in all_sprites)
+                self.base_h = max(s.get_height() for s in all_sprites)
+            else:
+                self.base_w = 1
+                self.base_h = 1
+
         except Exception:
             self._images_ok = False
             self.player_idle = None
             self.player_walk = []
             self.player_dir = {}
+            self.player_idle_dir = {}
+            self.base_w = 1
+            self.base_h = 1
 
         self.player_frame = 0
         self.player_anim_timer = 0.0
@@ -145,6 +189,19 @@ class Fase1:
             print("Fase1: erro ao configurar timer_sound:", e)
             self.timer_sound = None
         # ----------------------------------------
+
+    def _trim_sprite(self, surf):
+        try:
+            mask = pygame.mask.from_surface(surf)
+            rects = mask.get_bounding_rects()
+            if not rects:
+                return surf
+            r = rects[0].copy()
+            for rr in rects[1:]:
+                r.union_ip(rr)
+            return surf.subsurface(r).copy()
+        except Exception:
+            return surf
 
     def draw_text(self, txt, x, y, color=WHITE):
         surf = self.font.render(txt, True, color)
@@ -347,14 +404,11 @@ class Fase1:
                 else:
                     sprite = self.player_walk[self.player_frame]
             else:
-                sprite = self.player_dir.get(self.facing, self.player_idle)
+                sprite = self.player_idle_dir.get(self.facing, self.player_dir.get(self.facing, self.player_idle))
 
             w, h = sprite.get_size()
-            if w > 0 and h > 0:
-                scale = min(self.player_rect.width / w, self.player_rect.height / h)
-                new_size = (max(1, int(w * scale)), max(1, int(h * scale)))
-            else:
-                new_size = (self.player_rect.width, self.player_rect.height)
+            scale = min(self.player_rect.width / self.base_w, self.player_rect.height / self.base_h)
+            new_size = (max(1, int(w * scale)), max(1, int(h * scale)))
 
             try:
                 sprite_scaled = pygame.transform.smoothscale(sprite, new_size)
@@ -362,7 +416,7 @@ class Fase1:
                 sprite_scaled = pygame.transform.scale(sprite, new_size)
 
             #flip horizontal quando estiver virado à esquerda 
-            if self.facing_left and (self.facing not in self.player_dir):
+            if self.facing_left and (self.facing not in self.player_dir) and (self.facing not in self.player_idle_dir):
                 sprite_scaled = pygame.transform.flip(sprite_scaled, True, False)
 
             x = self.player_rect.centerx - sprite_scaled.get_width() // 2
