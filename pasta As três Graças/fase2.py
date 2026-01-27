@@ -57,10 +57,27 @@ def _load_sounds(base_dir=None):
 
     return alarm_s, sabotage_s
 
+def _trim_sprite(surf):
+    try:
+        mask = pygame.mask.from_surface(surf)
+        rects = mask.get_bounding_rects()
+        if not rects:
+            return surf
+        r = rects[0].copy()
+        for rr in rects[1:]:
+            r.union_ip(rr)
+        return surf.subsurface(r).copy()
+    except Exception:
+        return surf
+
 def _load_player_sprites(base_dir=None):
     idle = None
     walk = []
     ok = False
+    idle_dir = {}
+    walk_dir = {}
+    base_w = 1
+    base_h = 1
     try:
         player_dir = os.path.join(base_dir or "", "assets", "player")
         idle_path = os.path.join(player_dir, "idle.png")
@@ -68,34 +85,85 @@ def _load_player_sprites(base_dir=None):
         if os.path.exists(idle_path):
             idle = pygame.image.load(idle_path).convert_alpha()
 
-        for i in range(8):
+        for i in range(3):
             p = os.path.join(player_dir, f"walk_{i}.png")
             if os.path.exists(p):
                 walk.append(pygame.image.load(p).convert_alpha())
+
+        idle_files = {
+            "down": "idledown.png",
+            "up": "idleup.png",
+            "left": "idleleft.png",
+            "right": "idleright.png",
+        }
+        for d, fn in idle_files.items():
+            p = os.path.join(player_dir, fn)
+            if os.path.exists(p):
+                idle_dir[d] = pygame.image.load(p).convert_alpha()
+
+        for d in ["down","up","left","right"]:
+            frames = []
+            for i in range(3):
+                p = os.path.join(player_dir, f"walk_{i}{d}.png")
+                if os.path.exists(p):
+                    frames.append(pygame.image.load(p).convert_alpha())
+            if frames:
+                walk_dir[d] = frames
+
+        if idle is None:
+            idle = idle_dir.get("down", None)
 
         if idle:
             walk = walk or [idle]
             ok = True
 
+        if idle is not None:
+            idle = _trim_sprite(idle)
+        walk = [_trim_sprite(s) for s in walk]
+
+        for k in list(idle_dir.keys()):
+            idle_dir[k] = _trim_sprite(idle_dir[k])
+
+        for k in list(walk_dir.keys()):
+            walk_dir[k] = [_trim_sprite(s) for s in walk_dir[k]]
+
+        all_sprites = []
+        if idle is not None:
+            all_sprites.append(idle)
+        all_sprites += walk
+        all_sprites += list(idle_dir.values())
+        for frames in walk_dir.values():
+            all_sprites += list(frames)
+
+        if all_sprites:
+            base_w = max(s.get_width() for s in all_sprites)
+            base_h = max(s.get_height() for s in all_sprites)
+
     except Exception:
         ok = False
 
-    return ok, idle, walk
+    return ok, idle, walk, idle_dir, walk_dir, base_w, base_h
 
 # ----- ENTIDADES -----
 class Player:
     def __init__(self, x,y):
-        self.rect = pygame.Rect(x, y, 45, 75)
+        self.rect = pygame.Rect(x, y, 64, 96)
 
         self.speed = PLAYER_SPEED
         self.images_ok = False
         self.idle = None
         self.walk = []
+        self.idle_dir = {}
+        self.walk_dir = {}
+        self.base_w = 1
+        self.base_h = 1
         self.frame = 0
         self.anim_timer = 0.0
         self.anim_speed = 0.12
         self.moving = False
         self.facing_left = False
+        self.facing = "down"
+        self._prev_facing = self.facing
 
     def update(self, dt, walls):
         keys = pygame.key.get_pressed()
@@ -106,9 +174,23 @@ class Player:
         if keys[pygame.K_s] or keys[pygame.K_DOWN]: dy += 1
         if dx or dy:
             l = math.hypot(dx,dy)
-            dx /= l; dy /= l
+            if l != 0:
+                dx /= l; dy /= l
 
-        self.facing_left = dx < 0
+        if dx != 0 or dy != 0:
+            if abs(dx) > abs(dy):
+                if dx < 0:
+                    self.facing_left = True
+                    self.facing = "left"
+                elif dx > 0:
+                    self.facing_left = False
+                    self.facing = "right"
+            else:
+                if dy < 0:
+                    self.facing = "up"
+                elif dy > 0:
+                    self.facing = "down"
+
         self.moving = bool(dx or dy)
 
         self.rect.x += dx * self.speed * dt
@@ -126,14 +208,30 @@ class Player:
 
     def draw(self, surf):
         if self.images_ok and self.idle:
-            sprite = self.walk[self.frame] if self.moving else self.idle
+            if self.moving:
+                frames = self.walk_dir.get(self.facing)
+                if frames:
+                    sprite = frames[self.frame % len(frames)]
+                else:
+                    sprite = self.walk[self.frame] if self.walk else self.idle
+            else:
+                sprite = self.idle_dir.get(self.facing, self.idle)
+
+            w, h = sprite.get_size()
+            scale = min(self.rect.width / self.base_w, self.rect.height / self.base_h)
+            new_size = (max(1, int(w * scale)), max(1, int(h * scale)))
+
             try:
-                sprite = pygame.transform.smoothscale(sprite, self.rect.size)
+                sprite_scaled = pygame.transform.smoothscale(sprite, new_size)
             except Exception:
-                sprite = pygame.transform.scale(sprite, self.rect.size)
-            if self.facing_left:
-                sprite = pygame.transform.flip(sprite, True, False)
-            surf.blit(sprite, self.rect.topleft)
+                sprite_scaled = pygame.transform.scale(sprite, new_size)
+
+            if self.facing_left and (self.facing not in self.walk_dir) and (self.facing not in self.idle_dir):
+                sprite_scaled = pygame.transform.flip(sprite_scaled, True, False)
+
+            x = self.rect.centerx - sprite_scaled.get_width() // 2
+            y = self.rect.centery - sprite_scaled.get_height() // 2
+            surf.blit(sprite_scaled, (x, y))
         else:
             pygame.draw.rect(surf, PLAYER_COLOR, self.rect)
 
@@ -221,7 +319,7 @@ def build_walls():
 # ----- RUN -----
 def run(screen, clock, font, base_dir=None):
     alarm_sound, sabotage_sound = _load_sounds(base_dir)
-    sprites_ok, idle_img, walk_imgs = _load_player_sprites(base_dir)
+    sprites_ok, idle_img, walk_imgs, idle_dir, walk_dir, base_w, base_h = _load_player_sprites(base_dir)
 
     # --- MÚSICA DE FUNDO DA FASE 2 (ADIÇÃO MÍNIMA) ---
     try:
@@ -264,6 +362,10 @@ def run(screen, clock, font, base_dir=None):
     player.images_ok = sprites_ok
     player.idle = idle_img
     player.walk = walk_imgs
+    player.idle_dir = idle_dir
+    player.walk_dir = walk_dir
+    player.base_w = base_w
+    player.base_h = base_h
 
     # Cameras: now with sweep. Arguments: x,y,initial_angle,min_angle,max_angle,sweep_speed
     cams = [
@@ -304,10 +406,15 @@ def run(screen, clock, font, base_dir=None):
 
         if player.images_ok:
             if player.moving:
+                if player.facing != player._prev_facing:
+                    player.frame = 0
+                    player.anim_timer = 0.0
+                    player._prev_facing = player.facing
                 player.anim_timer += dt
                 if player.anim_timer >= player.anim_speed:
                     player.anim_timer = 0.0
-                    player.frame = (player.frame+1) % len(player.walk)
+                    frames = player.walk_dir.get(player.facing, player.walk)
+                    player.frame = (player.frame+1) % len(frames)
             else:
                 player.frame = 0
 
