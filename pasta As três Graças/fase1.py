@@ -16,9 +16,24 @@ class Fase1:
         self.screen = screen
         self.font = font
         self.width, self.height = screen.get_size()
-        
+
+        try:
+            module_dir = os.path.dirname(os.path.abspath(__file__))
+            floor_path = os.path.join(module_dir, "assets", "piso_madeira.png")
+            img = pygame.image.load(floor_path).convert()
+
+            # deixa o tile menor (ajuste aqui o tamanho)
+            self.floor_tile = pygame.transform.smoothscale(img, (64, 64))
+        except Exception:
+            self.floor_tile = None
+
+        self.floor_overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        self.floor_overlay.fill((0, 0, 0, 90))
+
         # Estado do jogador
         self.player_rect = pygame.Rect(50, 50, 64, 96)
+        self.hitbox = self.player_rect.inflate(-30, -30)
+        self.hitbox.midbottom = self.player_rect.midbottom
         self.facing_left = False
         self.facing = "down"
 
@@ -330,29 +345,32 @@ class Fase1:
         if dx or dy:
             mag = math.hypot(dx, dy)
             if mag != 0:  
-                self.player_rect.x += (dx/mag) * speed * dt
+                self.hitbox.x += (dx/mag) * speed * dt
                 for w in self.walls:
-                    if self.player_rect.colliderect(w):
-                        if dx > 0: self.player_rect.right = w.left
-                        if dx < 0: self.player_rect.left = w.right
+                    if self.hitbox.colliderect(w):
+                        if dx > 0: self.hitbox.right = w.left
+                        if dx < 0: self.hitbox.left = w.right
 
-                if self.player_rect.colliderect(self.safe_rect):
+                if self.hitbox.colliderect(self.safe_rect):
                     if dx > 0:
-                        self.player_rect.right = self.safe_rect.left
+                        self.hitbox.right = self.safe_rect.left
                     elif dx < 0:
-                        self.player_rect.left = self.safe_rect.right
-                
-                self.player_rect.y += (dy/mag) * speed * dt
-                for w in self.walls:
-                    if self.player_rect.colliderect(w):
-                        if dy > 0: self.player_rect.bottom = w.top
-                        if dy < 0: self.player_rect.top = w.bottom
+                        self.hitbox.left = self.safe_rect.right
 
-                if self.player_rect.colliderect(self.safe_rect):
+                self.hitbox.y += (dy/mag) * speed * dt
+                for w in self.walls:
+                    if self.hitbox.colliderect(w):
+                        if dy > 0: self.hitbox.bottom = w.top
+                        if dy < 0: self.hitbox.top = w.bottom
+
+                if self.hitbox.colliderect(self.safe_rect):
                     if dy > 0:
-                        self.player_rect.bottom = self.safe_rect.top
+                        self.hitbox.bottom = self.safe_rect.top
                     elif dy < 0:
-                        self.player_rect.top = self.safe_rect.bottom
+                        self.hitbox.top = self.safe_rect.bottom
+
+                self.player_rect.midbottom = self.hitbox.midbottom
+
 
         self.player_moving = (dx != 0 or dy != 0)
 
@@ -409,6 +427,15 @@ class Fase1:
         return None
 
     def draw(self):
+        if self.floor_tile:
+            tw, th = self.floor_tile.get_width(), self.floor_tile.get_height()
+            for y in range(0, self.height, th):
+                for x in range(0, self.width, tw):
+                    self.screen.blit(self.floor_tile, (x, y))
+            self.screen.blit(self.floor_overlay, (0, 0))
+        else:
+            self.screen.fill((20,20,25))
+
         for w in self.walls:
             pygame.draw.rect(self.screen, WALL_COLOR, w)
 
