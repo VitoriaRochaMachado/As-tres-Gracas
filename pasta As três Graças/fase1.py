@@ -197,7 +197,7 @@ class Fase1:
         # atualiza facing com base em dx
         if dx < 0:
             self.facing_left = True
-        elif dx > 0:
+        if dx > 0:
             self.facing_left = False
 
         if dx or dy:
