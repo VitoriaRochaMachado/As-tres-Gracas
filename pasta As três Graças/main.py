@@ -126,7 +126,7 @@ def tela_inicial(screen, clock):
     except Exception:
         bg = None
 
-    # --- SOM DA TELA INICIAL: música de fundo (ADIÇÃO MÍNIMA) ---
+    # --- SOM DA TELA INICIAL: música de fundo ---
     try:
         # garante que o mixer esteja inicializado
         if pygame.mixer.get_init() is None:
@@ -309,6 +309,9 @@ def main():
             for e in pygame.event.get():
                 if e.type == pygame.QUIT:
                     pygame.quit(); sys.exit()
+                if e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE:
+                    pygame.quit(); sys.exit()
+
 
             result = fase1.update(dt)
             screen.fill((20,20,25))

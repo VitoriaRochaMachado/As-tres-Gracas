@@ -135,15 +135,20 @@ class Fase1:
 
         # PAPER: múltiplos possíveis esconderijos
         self.hiding_spots = [
-            pygame.Rect(150, 420, 40, 24),
-            pygame.Rect(260, 440, 40, 24),
-            pygame.Rect(380, 410, 40, 24),
-            pygame.Rect(520, 380, 40, 24),
-            pygame.Rect(720, 430, 40, 24),
+            pygame.Rect(120, 120, 40, 24),
+            pygame.Rect(220, 160, 40, 24),
+            pygame.Rect(260, 320, 40, 24),
+            pygame.Rect(180, 520, 40, 24),
+            pygame.Rect(420, 140, 40, 24),
+            pygame.Rect(520, 180, 40, 24),
+            pygame.Rect(460, 320, 40, 24),
+            pygame.Rect(620, 520, 40, 24),
+            pygame.Rect(820, 140, 40, 24),
+            pygame.Rect(880, 360, 40, 24),
         ]
-        self.hiding_spot = random.choice(self.hiding_spots)
 
-        self.paper_rect = pygame.Rect(800, 100, 60, 40)
+        self.hiding_spot = random.choice(self.hiding_spots)
+        self.paper_rect = pygame.Rect(self.hiding_spot.x, self.hiding_spot.y, 85, 50)
         self.paper_hidden = True
         self.paper_opened = False
         self.code = str(random.randint(1000, 9999))
@@ -172,13 +177,34 @@ class Fase1:
 
         # paredes
         self.walls = [
-            pygame.Rect(300, 20, 20, 400),
-            pygame.Rect(600, 200, 400, 20),
+            # bordas
             pygame.Rect(0, 0, self.width, 16),
             pygame.Rect(0, self.height-16, self.width, 16),
             pygame.Rect(0, 0, 16, self.height),
-            pygame.Rect(self.width-16, 0, 16, self.height)
+            pygame.Rect(self.width-16, 0, 16, self.height),
+
+            # parede vertical principal (porta MUITO larga)
+            pygame.Rect(340, 16, 20, 210),
+            pygame.Rect(320, 420, 20, self.height-16-420),
+
+            # parede horizontal superior (porta larga no centro)
+            pygame.Rect(340, 220, 220, 20),
+            pygame.Rect(720, 220, (self.width-16) - 720, 20),
+
+            # parede vertical direita (porta muito larga)
+            pygame.Rect(740, 240, 20, 140),
+            pygame.Rect(740, 560, 20, (self.height-16) - 560),
+
+            # parede horizontal inferior (deixa corredor largo — sem “dente”)
+            pygame.Rect(340, 420, 260, 20),
         ]
+
+
+        self.hiding_spots = [r for r in self.hiding_spots if not any(r.colliderect(w) for w in self.walls)]
+        if len(self.hiding_spots) == 0:
+            self.hiding_spots = [pygame.Rect(120, 120, 40, 24)]
+        self.hiding_spot = random.choice(self.hiding_spots)
+
 
         self._prev_num_keys = set()
 
@@ -330,11 +356,13 @@ class Fase1:
 
         self.player_moving = (dx != 0 or dy != 0)
 
-        if self.paper_hidden and self.player_rect.colliderect(self.hiding_spot):
+        if self.player_rect.colliderect(self.hiding_spot.inflate(20, 20)):
             if keys[pygame.K_SPACE]:
+                self.paper_rect.center = self.hiding_spot.center
                 self.paper_hidden = False
                 self.paper_opened = True
                 self.has_seen_code = True
+
 
         if self.player_rect.colliderect(self.safe_rect.inflate(28, 28)):
             if not self.entering_code and keys[pygame.K_SPACE] and self.has_seen_code:
