@@ -321,7 +321,7 @@ def main():
             mostrar_game_over(screen, clock, GAME_OVER_BG)
             continue
 
-        # ---------- CHAMA FASE 2 (mínima alteração) ----------
+        # ---------- CHAMA FASE 2  ----------
         try:
             # passa BASE_DIR para fase2 para que ela carregue sprites/sons do folder assets
             resultado_fase2 = fase2.run(screen, clock, font, BASE_DIR)
@@ -341,7 +341,6 @@ def main():
         if resultado_fase2 == "RECORDED":
             mostrar_game_over(screen, clock, GAME_OVER_BG)
             continue
-        # ---------- fim da inserção mínima da Fase 2 ----------
 
         # Antes de chamar a Fase 3, injetamos um proxy seguro em fase3.show_end_screen
         # que distingue vitória de derrota pelo `title` passado.
@@ -366,7 +365,7 @@ def main():
         except Exception as e:
             print("Aviso: não foi possível sobrescrever show_end_screen em fase3:", e)
 
-        # chama Fase 3 (refatorado)
+        # chama Fase 3 
         fase3.run(screen, clock, font, BASE_DIR)
 
 

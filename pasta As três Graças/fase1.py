@@ -18,10 +18,10 @@ class Fase1:
         self.width, self.height = screen.get_size()
         
         # Estado do jogador
-        self.player_rect = pygame.Rect(50, 50, 45, 75)
+        self.player_rect = pygame.Rect(50, 50, 64, 96)
         self.facing_left = False
 
-        # --- SPRITES DO JOGADOR (MÍNIMA ALTERAÇÃO) ---
+        # --- SPRITES DO JOGADOR ---
         self._images_ok = False
         try:
             module_dir = os.path.dirname(os.path.abspath(__file__))
@@ -313,23 +313,32 @@ class Fase1:
 
         self.draw_text("COFRE", self.safe_rect.x-5, self.safe_rect.y-25)
 
-        # --- DESENHO DO JOGADOR: sprite se possível, senão retângulo (MÍNIMA ALTERAÇÃO) ---
+        # --- DESENHO DO JOGADOR: sprite se possível, senão retângulo  ---
         if self._images_ok and (self.player_idle is not None):
             if self.player_moving:
                 sprite = self.player_walk[self.player_frame]
             else:
                 sprite = self.player_idle
 
+            w, h = sprite.get_size()
+            if w > 0 and h > 0:
+                scale = min(self.player_rect.width / w, self.player_rect.height / h)
+                new_size = (max(1, int(w * scale)), max(1, int(h * scale)))
+            else:
+                new_size = (self.player_rect.width, self.player_rect.height)
+
             try:
-                sprite_scaled = pygame.transform.smoothscale(sprite, (self.player_rect.width, self.player_rect.height))
+                sprite_scaled = pygame.transform.smoothscale(sprite, new_size)
             except Exception:
-                sprite_scaled = pygame.transform.scale(sprite, (self.player_rect.width, self.player_rect.height))
+                sprite_scaled = pygame.transform.scale(sprite, new_size)
 
             #flip horizontal quando estiver virado à esquerda 
             if self.facing_left:
                 sprite_scaled = pygame.transform.flip(sprite_scaled, True, False)
 
-            self.screen.blit(sprite_scaled, self.player_rect.topleft)
+            x = self.player_rect.centerx - sprite_scaled.get_width() // 2
+            y = self.player_rect.centery - sprite_scaled.get_height() // 2
+            self.screen.blit(sprite_scaled, (x, y))
         else:
             pygame.draw.rect(self.screen, (200,60,80), self.player_rect)
         # ------------------------------------------------------------------------------
