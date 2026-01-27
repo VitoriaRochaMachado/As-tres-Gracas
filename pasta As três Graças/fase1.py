@@ -54,6 +54,16 @@ class Fase1:
                 if os.path.exists(p):
                     self.player_idle_dir[d] = pygame.image.load(p).convert_alpha()
 
+            self.player_walk_dir = {}
+            for d in ["down","up","left","right"]:
+                frames = []
+                for i in range(3):
+                    p = os.path.join(player_dir, f"walk_{i}{d}.png")
+                    if os.path.exists(p):
+                        frames.append(pygame.image.load(p).convert_alpha())
+                if frames:
+                    self.player_walk_dir[d] = frames
+
             if os.path.exists(idle_path):
                 self.player_idle = pygame.image.load(idle_path).convert_alpha()
             else:
@@ -81,6 +91,9 @@ class Fase1:
             for k in list(self.player_idle_dir.keys()):
                 self.player_idle_dir[k] = self._trim_sprite(self.player_idle_dir[k])
 
+            for k in list(self.player_walk_dir.keys()):
+                self.player_walk_dir[k] = [self._trim_sprite(s) for s in self.player_walk_dir[k]]
+
             if self.player_idle is not None:
                 self.player_idle = self._trim_sprite(self.player_idle)
 
@@ -89,6 +102,8 @@ class Fase1:
             all_sprites = []
             all_sprites += list(self.player_dir.values())
             all_sprites += list(self.player_idle_dir.values())
+            for frames in self.player_walk_dir.values():
+                all_sprites += list(frames)
             if self.player_idle is not None:
                 all_sprites.append(self.player_idle)
             for s in self.player_walk:
@@ -107,6 +122,7 @@ class Fase1:
             self.player_walk = []
             self.player_dir = {}
             self.player_idle_dir = {}
+            self.player_walk_dir = {}
             self.base_w = 1
             self.base_h = 1
 
@@ -114,6 +130,7 @@ class Fase1:
         self.player_anim_timer = 0.0
         self.player_anim_speed = 0.12
         self.player_moving = False
+        self._prev_facing = self.facing
         # --------------------------------------------
 
         # PAPER: múltiplos possíveis esconderijos
@@ -346,10 +363,16 @@ class Fase1:
 
         if self._images_ok:
             if self.player_moving:
+                if self.facing != self._prev_facing:
+                    self.player_frame = 0
+                    self.player_anim_timer = 0.0
+                    self._prev_facing = self.facing
+
                 self.player_anim_timer += dt
                 if self.player_anim_timer >= self.player_anim_speed:
                     self.player_anim_timer = 0.0
-                    self.player_frame = (self.player_frame + 1) % len(self.player_walk)
+                    frames = self.player_walk_dir.get(self.facing, self.player_walk)
+                    self.player_frame = (self.player_frame + 1) % len(frames)
             else:
                 self.player_frame = 0
                 self.player_anim_timer = 0.0
@@ -399,7 +422,10 @@ class Fase1:
         # --- DESENHO DO JOGADOR: sprite se possível, senão retângulo  ---
         if self._images_ok and (self.player_idle is not None):
             if self.player_moving:
-                if self.facing in self.player_dir:
+                frames = self.player_walk_dir.get(self.facing)
+                if frames:
+                    sprite = frames[self.player_frame % len(frames)]
+                elif self.facing in self.player_dir:
                     sprite = self.player_dir[self.facing]
                 else:
                     sprite = self.player_walk[self.player_frame]
