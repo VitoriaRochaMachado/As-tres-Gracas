@@ -236,29 +236,19 @@ class Player:
             pygame.draw.rect(surf, PLAYER_COLOR, self.rect)
 
 class Camera:
-    """
-    Camera now supports an optional sweep:
-      - angle: current angle in degrees
-      - min_angle, max_angle: bounds for sweeping (deg)
-      - sweep_speed: degrees per second (positive)
-      - sweep_dir: 1 or -1 (current sweep direction)
-    """
     def __init__(self, x, y, angle, min_angle=None, max_angle=None, sweep_speed=0):
         self.pos = pygame.Vector2(x,y)
         self.angle = float(angle)
         self.rect = pygame.Rect(x-10,y-10,20,20)
 
-        # sweep parameters (optional). If min/max are None or speed==0 => static camera
         self.min_angle = float(min_angle) if min_angle is not None else None
         self.max_angle = float(max_angle) if max_angle is not None else None
         self.sweep_speed = float(sweep_speed)
         self.sweep_dir = 1  # 1 -> increasing angle, -1 -> decreasing
 
     def update(self, dt):
-        # if sweep is configured, advance angle and bounce between min/max
         if self.min_angle is not None and self.max_angle is not None and self.sweep_speed != 0:
             self.angle += self.sweep_dir * self.sweep_speed * dt
-            # bounce
             if self.angle > self.max_angle:
                 self.angle = self.max_angle
                 self.sweep_dir = -1
@@ -292,7 +282,6 @@ class Camera:
 
     def draw(self, surf):
         pygame.draw.rect(surf, CAM_COLOR, self.rect)
-        # cone visualization based on current angle
         a1 = math.radians(self.angle - CAM_FOV_ANGLE/2)
         a2 = math.radians(self.angle + CAM_FOV_ANGLE/2)
         p1 = self.pos + pygame.Vector2(math.cos(a1), math.sin(a1)) * CAM_FOV_DIST
@@ -323,38 +312,43 @@ def run(screen, clock, font, base_dir=None):
     alarm_sound, sabotage_sound = _load_sounds(base_dir)
     sprites_ok, idle_img, walk_imgs, idle_dir, walk_dir, base_w, base_h = _load_player_sprites(base_dir)
 
-    # --- PISO + OVERLAY + TIMER BOX (VISUAL) ---
+    # --- PISO + OVERLAY + TIMER BOX + PAINEL (VISUAL) ---
+    panel_img = None
     try:
         if base_dir:
             floor_path = os.path.join(base_dir, "assets", "piso_madeira.png")
             timer_box_path = os.path.join(base_dir, "assets", "timer_box.png")
+            panel_path = os.path.join(base_dir, "assets", "painel.png")
         else:
             floor_path = os.path.join("assets", "piso_madeira.png")
             timer_box_path = os.path.join("assets", "timer_box.png")
+            panel_path = os.path.join("assets", "painel.png")
 
         floor_img = pygame.image.load(floor_path).convert()
         floor_tile = pygame.transform.smoothscale(floor_img, (74, 74))
+        
+        timer_box_img = pygame.image.load(timer_box_path).convert_alpha()
+
+        # Carrega a imagem do painel e redimensiona para 40x40 (mesmo tamanho do Rect)
+        if os.path.exists(panel_path):
+            panel_img = pygame.image.load(panel_path).convert_alpha()
+            panel_img = pygame.transform.smoothscale(panel_img, (40, 40))
     except Exception:
         floor_tile = None
+        timer_box_img = None
+        panel_img = None
 
     floor_overlay = pygame.Surface((SW, SH), pygame.SRCALPHA)
     floor_overlay.fill((0, 0, 0, 100))
 
-    try:
-        timer_box_img = pygame.image.load(timer_box_path).convert_alpha()
-    except Exception:
-        timer_box_img = None
-
     def draw_floor_and_walls(walls):
         screen.fill(BG_COLOR)
-
         if floor_tile:
             tw, th = floor_tile.get_width(), floor_tile.get_height()
             for yy in range(0, SH, th):
                 for xx in range(0, SW, tw):
                     screen.blit(floor_tile, (xx, yy))
             screen.blit(floor_overlay, (0, 0))
-
         for w in walls:
             pygame.draw.rect(screen, WALL_COLOR, w)
 
@@ -365,77 +359,52 @@ def run(screen, clock, font, base_dir=None):
             x = SW - 16 - box_w - 12
             y = 16
             screen.blit(box, (x, y))
-
             tempo_font = pygame.font.SysFont("consolas", 30, bold=True)
             tempo_txt = tempo_font.render(f"{int(seconds_left)}", True, (255,255,255))
-            screen.blit(
-                tempo_txt,
-                (x + box_w//2 - tempo_txt.get_width()//2,
-                 y + box_h//2 - tempo_txt.get_height()//2)
-            )
+            screen.blit(tempo_txt, (x + box_w//2 - tempo_txt.get_width()//2, y + box_h//2 - tempo_txt.get_height()//2))
         else:
             draw_text(screen, f"TEMPO: {int(seconds_left)}s", 18, 18, font, ALARM_COLOR)
 
-    # --- MÚSICA DE FUNDO DA FASE 2  ---
+    # Função auxiliar para desenhar o painel (imagem ou fallback)
+    def draw_panel(rect):
+        if panel_img:
+            screen.blit(panel_img, (rect.x, rect.y))
+        else:
+            pygame.draw.rect(screen, PANEL_COLOR, rect)
+
+    # --- MÚSICA DE FUNDO ---
     try:
         if base_dir:
             fase2_music_path = os.path.join(base_dir, "assets", "som_fase2.mp3")
         else:
             fase2_music_path = "assets/som_fase2.mp3"
-
-        if pygame.mixer.get_init() is None:
-            try:
-                pygame.mixer.init()
-            except Exception:
-                pass
-
         if os.path.exists(fase2_music_path) and pygame.mixer.get_init() is not None:
-            try:
-                pygame.mixer.music.load(fase2_music_path)
-                pygame.mixer.music.set_volume(0.5)
-                pygame.mixer.music.play(-1)  # loop infinito
-            except Exception:
-                pass
+            pygame.mixer.music.load(fase2_music_path)
+            pygame.mixer.music.set_volume(0.5)
+            pygame.mixer.music.play(-1)
     except Exception:
         pass
-    # ----------------------------------------------
 
     def stop_alarm():
         try:
-            if alarm_sound:
-                alarm_sound.stop()
-        except Exception:
-            pass
-        # também para a música de fundo 
-        try:
+            if alarm_sound: alarm_sound.stop()
             pygame.mixer.music.stop()
-        except Exception:
-            pass
+        except Exception: pass
 
     walls = build_walls(SW, SH)
     player = Player(80, HEIGHT//2)
-    player.images_ok = sprites_ok
-    player.idle = idle_img
-    player.walk = walk_imgs
-    player.idle_dir = idle_dir
-    player.walk_dir = walk_dir
-    player.base_w = base_w
-    player.base_h = base_h
+    player.images_ok, player.idle, player.walk, player.idle_dir, player.walk_dir, player.base_w, player.base_h = sprites_ok, idle_img, walk_imgs, idle_dir, walk_dir, base_w, base_h
 
-    # Cameras: now with sweep. Arguments: x,y,initial_angle,min_angle,max_angle,sweep_speed
     cams = [
-        Camera(360,200, -35, -60, 0, 30.0),   # varre de -60 a 0 graus a 30°/s
-        Camera(620,360, 215, 180, 250, 22.0), # varre de 180 a 250 graus a 22°/s
+        Camera(360,200, -35, -60, 0, 30.0),
+        Camera(620,360, 215, 180, 250, 22.0),
     ]
 
     panel = pygame.Rect(480,280,40,40)
     sabotage_timer = 0.0
     recorded = False
     timer = TIME_LIMIT
-
     alarm_playing = False
-
-    # feedback when sabotage completes
     sabotage_success_time = 0.0
     SHOW_SABOTAGE_MSG = 0.9
     sabotage_success = False
@@ -448,122 +417,90 @@ def run(screen, clock, font, base_dir=None):
             if e.type == pygame.QUIT:
                 stop_alarm()
                 pygame.quit(); sys.exit()
-            if e.type == pygame.KEYDOWN:
-                if e.key == pygame.K_ESCAPE:
-                    stop_alarm()
-                    pygame.quit(); sys.exit()
+            if e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE:
+                stop_alarm()
+                pygame.quit(); sys.exit()
 
         if timer <= 0:
-            stop_alarm()
-            return "LOSE"
+            stop_alarm(); return "LOSE"
 
         player.update(dt, walls)
 
         if player.images_ok:
             if player.moving:
                 if player.facing != player._prev_facing:
-                    player.frame = 0
-                    player.anim_timer = 0.0
+                    player.frame, player.anim_timer = 0, 0.0
                     player._prev_facing = player.facing
                 player.anim_timer += dt
                 if player.anim_timer >= player.anim_speed:
                     player.anim_timer = 0.0
                     frames = player.walk_dir.get(player.facing, player.walk)
                     player.frame = (player.frame+1) % len(frames)
-            else:
-                player.frame = 0
+            else: player.frame = 0
 
         keys = pygame.key.get_pressed()
-        # sabotagem: acumula enquanto estiver pressionando SPACE sobre o painel
         if not sabotage_success and player.rect.colliderect(panel) and keys[pygame.K_SPACE]:
             sabotage_timer += dt
             if sabotage_sound and sabotage_timer < 0.06:
-                try:
-                    sabotage_sound.play()
-                except Exception:
-                    pass
+                try: sabotage_sound.play()
+                except Exception: pass
             if sabotage_timer >= SABOTAGE_TIME:
-                # ---- MINIMAL FIX: when sabotage completes, clear cams AND clear recorded/alarm ----
                 cams.clear()
                 recorded = False
-                # stop any playing alarm and reset flag
                 stop_alarm()
                 alarm_playing = False
                 sabotage_success = True
                 sabotage_success_time = 0.0
         else:
-            if not sabotage_success:
-                sabotage_timer = max(0.0, sabotage_timer - dt*1.6)
+            if not sabotage_success: sabotage_timer = max(0.0, sabotage_timer - dt*1.6)
 
-        # if sabotage just succeeded, show message then continue (do not let cameras trigger during the message)
         if sabotage_success:
             sabotage_success_time += dt
-            # draw a quick message frame
             draw_floor_and_walls(walls)
-            for c in cams:
-                c.draw(screen)
-            pygame.draw.rect(screen, PANEL_COLOR, panel)
+            for c in cams: c.draw(screen)
+            draw_panel(panel) # Usando a função auxiliar
             player.draw(screen)
             draw_timer_box(timer)
             draw_text(screen, "SABOTAGEM: SUCESSO", WIDTH//2 - 120, HEIGHT//2 - 10, font, HINT_COLOR)
             pygame.display.flip()
-            if sabotage_success_time >= SHOW_SABOTAGE_MSG:
-                sabotage_success = False
-                sabotage_timer = 0.0
-            else:
-                continue  # show message fully before proceeding
+            if sabotage_success_time >= SHOW_SABOTAGE_MSG: sabotage_success = False; sabotage_timer = 0.0
+            else: continue
 
-        # Update camera angles (sweep) BEFORE visibility checks
-        for c in cams:
-            c.update(dt)
+        for c in cams: c.update(dt)
 
-        # check cameras only if there are cameras
         saw_now = False
         if cams:
             for c in cams:
-                if c.can_see(player.rect, walls):
-                    saw_now = True
-                    break
+                if c.can_see(player.rect, walls): saw_now = True; break
 
         if saw_now:
             recorded = True
-            # start alarm if not already playing
             if alarm_sound and not alarm_playing:
                 try:
                     alarm_sound.play(loops=-1)
                     alarm_playing = True
-                except Exception:
-                    alarm_playing = False
+                except Exception: pass
 
-        # if recorded, show message briefly then return RECORDED (main shows game over)
         if recorded:
-            # show immediate message frame so player sees it
             draw_floor_and_walls(walls)
-            for c in cams:
-                c.draw(screen)
-            pygame.draw.rect(screen, PANEL_COLOR, panel)
+            for c in cams: c.draw(screen)
+            draw_panel(panel) # Usando a função auxiliar
             player.draw(screen)
             draw_timer_box(timer)
             draw_text(screen, "CÂMERAS GRAVARAM", WIDTH//2 - 120, HEIGHT//2 - 10, font, ALARM_COLOR)
             pygame.display.flip()
-            # stop alarm and music (we show message, then return)
             stop_alarm()
             alarm_playing = False
             return "RECORDED"
 
-        # exit condition: reach right edge
         if player.rect.right >= WIDTH - 64 and not cams:
-            stop_alarm()
-            return "CLEAN"
+            stop_alarm(); return "CLEAN"
 
-        # drawing normal frame
         draw_floor_and_walls(walls)
-        for c in cams:
-            c.draw(screen)
-        pygame.draw.rect(screen, PANEL_COLOR, panel)
+        for c in cams: c.draw(screen)
+        draw_panel(panel) # Usando a função auxiliar
         player.draw(screen)
 
-        # HUD / instructions
         draw_timer_box(timer)
         draw_text(screen, "OBJETIVO: atravesse sem ser filmada", 18, 44, font, HINT_COLOR)
         draw_text(screen, "WASD / Setas: mover", 18, HEIGHT-70, font, WHITE)
