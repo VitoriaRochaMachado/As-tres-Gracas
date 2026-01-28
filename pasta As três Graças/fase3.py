@@ -391,6 +391,13 @@ def show_end_screen_local(screen, clock, font, title, msg, color, bg_image=None,
 
 # ----- RUN API -----
 def run(screen, clock, font, base_dir=None):
+        # Ajusta WIDTH/HEIGHT para o tamanho real do `screen` passado pelo main (não altera gameplay).
+    try:
+        sw, sh = screen.get_size()
+        globals()['WIDTH'], globals()['HEIGHT'] = sw, sh
+    except Exception:
+        pass
+
     """
     Substitui o antigo main(). Chamado pelo main.py como:
         fase2.run(screen, clock, font, BASE_DIR)

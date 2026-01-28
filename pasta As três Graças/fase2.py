@@ -428,7 +428,7 @@ def run(screen, clock, font, base_dir=None):
         Camera(620,360, 215, 180, 250, 22.0), # varre de 180 a 250 graus a 22°/s
     ]
 
-    panel = pygame.Rect(480,120,40,40)
+    panel = pygame.Rect(480,280,40,40)
     sabotage_timer = 0.0
     recorded = False
     timer = TIME_LIMIT
