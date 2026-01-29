@@ -259,8 +259,7 @@ def main():
     global WIDTH, HEIGHT
 
     pygame.init()
-    screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-    WIDTH, HEIGHT = screen.get_size()
+    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.SCALED | pygame.FULLSCREEN)
     pygame.display.set_caption("As Três Graças")
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("consolas", 20)

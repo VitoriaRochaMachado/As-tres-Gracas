@@ -148,6 +148,8 @@ def _load_player_sprites(base_dir=None):
 class Player:
     def __init__(self, x,y):
         self.rect = pygame.Rect(x, y, 64, 96)
+        self.hitbox = self.rect.inflate(-30, -40)
+        self.hitbox.midbottom = self.rect.midbottom
 
         self.speed = PLAYER_SPEED
         self.images_ok = False
@@ -193,18 +195,19 @@ class Player:
 
         self.moving = bool(dx or dy)
 
-        self.rect.x += dx * self.speed * dt
+        self.hitbox.x += dx * self.speed * dt
         self._collide(walls, dx, 0)
-        self.rect.y += dy * self.speed * dt
+        self.hitbox.y += dy * self.speed * dt
         self._collide(walls, 0, dy)
+        self.rect.midbottom = self.hitbox.midbottom
 
     def _collide(self, walls, dx, dy):
         for w in walls:
-            if self.rect.colliderect(w):
-                if dx > 0: self.rect.right = w.left
-                if dx < 0: self.rect.left = w.right
-                if dy > 0: self.rect.bottom = w.top
-                if dy < 0: self.rect.top = w.bottom
+            if self.hitbox.colliderect(w):
+                if dx > 0: self.hitbox.right = w.left
+                if dx < 0: self.hitbox.left = w.right
+                if dy > 0: self.hitbox.bottom = w.top
+                if dy < 0: self.hitbox.top = w.bottom
 
     def draw(self, surf):
         if self.images_ok and self.idle:
@@ -234,6 +237,7 @@ class Player:
             surf.blit(sprite_scaled, (x, y))
         else:
             pygame.draw.rect(surf, PLAYER_COLOR, self.rect)
+
 
 class Camera:
     def __init__(self, x, y, angle, min_angle=None, max_angle=None, sweep_speed=0):
@@ -396,11 +400,12 @@ def run(screen, clock, font, base_dir=None):
     player.images_ok, player.idle, player.walk, player.idle_dir, player.walk_dir, player.base_w, player.base_h = sprites_ok, idle_img, walk_imgs, idle_dir, walk_dir, base_w, base_h
 
     cams = [
-        Camera(360,200, -35, -60, 0, 30.0),
-        Camera(620,360, 215, 180, 250, 22.0),
+        Camera(int(SW*0.35), int(SH*0.25), -35, -60, 0, 30.0),
+        Camera(int(SW*0.60), int(SH*0.45), 215, 180, 250, 22.0),
     ]
 
-    panel = pygame.Rect(480,280,40,40)
+    panel = pygame.Rect(int(SW*0.49), int(SH*0.18), 40, 40)
+    panel_area = panel.inflate(120, 120)
     sabotage_timer = 0.0
     recorded = False
     timer = TIME_LIMIT
@@ -439,13 +444,13 @@ def run(screen, clock, font, base_dir=None):
             else: player.frame = 0
 
         keys = pygame.key.get_pressed()
-        if not sabotage_success and player.rect.colliderect(panel) and keys[pygame.K_SPACE]:
+        if not sabotage_success and player.hitbox.colliderect(panel_area) and keys[pygame.K_SPACE]:
             sabotage_timer += dt
             if sabotage_sound and sabotage_timer < 0.06:
                 try: sabotage_sound.play()
                 except Exception: pass
             if sabotage_timer >= SABOTAGE_TIME:
-                cams.clear()
+                cams = []
                 recorded = False
                 stop_alarm()
                 alarm_playing = False
@@ -458,7 +463,7 @@ def run(screen, clock, font, base_dir=None):
             sabotage_success_time += dt
             draw_floor_and_walls(walls)
             for c in cams: c.draw(screen)
-            draw_panel(panel) # Usando a função auxiliar
+            draw_panel(panel)
             player.draw(screen)
             draw_timer_box(timer)
             draw_text(screen, "SABOTAGEM: SUCESSO", WIDTH//2 - 120, HEIGHT//2 - 10, font, HINT_COLOR)
@@ -484,7 +489,7 @@ def run(screen, clock, font, base_dir=None):
         if recorded:
             draw_floor_and_walls(walls)
             for c in cams: c.draw(screen)
-            draw_panel(panel) # Usando a função auxiliar
+            draw_panel(panel)
             player.draw(screen)
             draw_timer_box(timer)
             draw_text(screen, "CÂMERAS GRAVARAM", WIDTH//2 - 120, HEIGHT//2 - 10, font, ALARM_COLOR)
@@ -493,12 +498,12 @@ def run(screen, clock, font, base_dir=None):
             alarm_playing = False
             return "RECORDED"
 
-        if player.rect.right >= WIDTH - 64 and not cams:
+        if player.rect.right >= SW - 64 and not cams:
             stop_alarm(); return "CLEAN"
 
         draw_floor_and_walls(walls)
         for c in cams: c.draw(screen)
-        draw_panel(panel) # Usando a função auxiliar
+        draw_panel(panel)
         player.draw(screen)
 
         draw_timer_box(timer)
