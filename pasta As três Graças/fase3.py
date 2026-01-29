@@ -301,26 +301,31 @@ class Guard:
 
 
     def update(self, dt):
-        if self.alerted: return
+        if self.alerted: 
+            return
+
         target = pygame.Vector2(self.path[(self.i+1)%len(self.path)])
         vec = target - self.pos
         dist = vec.length()
+
         if dist < 2:
+            self.moving = False  # <<< IMPORTANTE: parado usa idle
             self.pause_timer += dt
             if self.pause_timer >= self.pause:
                 self.pause_timer = 0
                 self.i = (self.i + 1) % len(self.path)
         else:
             self.direction = vec.normalize()
+
             if abs(self.direction.x) > abs(self.direction.y):
                 self.facing = "left" if self.direction.x < 0 else "right"
             else:
                 self.facing = "up" if self.direction.y < 0 else "down"
-            self.moving = True
 
+            self.moving = True  # <<< andando usa walk
             self.pos += self.direction * self.speed * dt
             self.rect.center = (round(self.pos.x), round(self.pos.y))
-        
+
         if self.images_ok and self.moving:
             self.anim_timer += dt
             if self.anim_timer >= self.anim_speed:
@@ -333,19 +338,24 @@ class Guard:
             self.anim_timer = 0.0
 
 
+
     def chase(self, player, dt):
         vec = pygame.Vector2(player.rect.center) - self.pos
+
         if vec.length() > 4:
             self.direction = vec.normalize()
+
             if abs(self.direction.x) > abs(self.direction.y):
                 self.facing = "left" if self.direction.x < 0 else "right"
             else:
                 self.facing = "up" if self.direction.y < 0 else "down"
-            self.moving = True
 
+            self.moving = True
             self.pos += self.direction * (self.speed*1.2) * dt
             self.rect.center = (round(self.pos.x), round(self.pos.y))
-        
+        else:
+            self.moving = False  # <<< IMPORTANTE: quando chega perto, volta pro idle
+
         if self.images_ok and self.moving:
             self.anim_timer += dt
             if self.anim_timer >= self.anim_speed:
@@ -371,12 +381,21 @@ class Guard:
         pygame.draw.polygon(s, (255, 240, 160, 40), [start, p1, p2])
         surf.blit(s, (0,0))
 
-        # --- desenha policial (sprite ou fallback retângulo) ---
         if self.images_ok and self.idle_dir:
-            if self.moving and self.walk_dir.get(self.facing):
-                sprite = self.walk_dir[self.facing][self.frame]
+            frames = self.walk_dir.get(self.facing)
+            idle = self.idle_dir.get(self.facing, next(iter(self.idle_dir.values())))
+
+            if self.moving and frames:
+                # Se só existe 1 frame de walk, alterna com idle pra parecer andando
+                if len(frames) == 1 and idle:
+                    if (pygame.time.get_ticks() // 140) % 2 == 0:
+                        sprite = frames[0]
+                    else:
+                        sprite = idle
+                else:
+                    sprite = frames[self.frame % len(frames)]
             else:
-                sprite = self.idle_dir.get(self.facing, next(iter(self.idle_dir.values())))
+                sprite = idle
 
             try:
                 sprite2 = pygame.transform.smoothscale(sprite, self.rect.size)
