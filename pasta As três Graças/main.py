@@ -145,7 +145,6 @@ def tela_inicial(screen, clock):
                 pass
     except Exception:
         pass
-    # ----------------------------------------------------------------
 
     # som (fallback silencioso) para hover / click
     try:
@@ -235,7 +234,6 @@ def tela_inicial(screen, clock):
         else:
             screen.fill((10,10,16))
 
-        # hover sound: toca uma vez ao entrar no botão
         for rect, name in [(start,"START"), (tuto,"TUTO"), (sair,"SAIR")]:
             if rect.collidepoint(mouse):
                 if hovered_last != name and hover_sound:
@@ -245,7 +243,6 @@ def tela_inicial(screen, clock):
         else:
             hovered_last = None
 
-        # desenha botões (usando collidepoint, sem colliderect com mouse)
         draw(start,"INICIAR", start.collidepoint(mouse))
         draw(tuto,"TUTORIAL", tuto.collidepoint(mouse))
         draw(sair,"SAIR", sair.collidepoint(mouse))
@@ -280,19 +277,18 @@ def main():
 
     # pré-carrega assets de fim de jogo
     try:
-        GAME_OVER_BG = pygame.image.load(asset_path("assets","game_over.png")).convert()
-        GAME_OVER_BG = pygame.transform.scale(GAME_OVER_BG,(WIDTH,HEIGHT))
+        PRESA_VIDEO_BG = pygame.image.load(asset_path("assets","Presa_video.png")).convert()
+        PRESA_VIDEO_BG = pygame.transform.scale(PRESA_VIDEO_BG,(WIDTH,HEIGHT))
     except Exception:
-        GAME_OVER_BG = None
+        PRESA_VIDEO_BG = None
 
     try:
-        VICTORY_BG = pygame.image.load(asset_path("assets","victory.png")).convert()
+        VICTORY_BG = pygame.image.load(asset_path("assets","vitoria.png")).convert()
         VICTORY_BG = pygame.transform.scale(VICTORY_BG,(WIDTH,HEIGHT))
     except Exception:
         VICTORY_BG = None
 
     while True:
-        # menu loop
         while True:
             choice = tela_inicial(screen, clock)
             if choice == "START": break
@@ -311,7 +307,6 @@ def main():
                 if e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE:
                     pygame.quit(); sys.exit()
 
-
             result = fase1.update(dt)
             screen.fill((20,20,25))
             fase1.draw()
@@ -321,55 +316,43 @@ def main():
                 break
 
         if result == "LOSE_TIME":
-            # se perder na fase1, mostra sua tela de game over e volta ao menu
-            mostrar_game_over(screen, clock, GAME_OVER_BG)
+            mostrar_game_over(screen, clock, PRESA_VIDEO_BG)
             continue
 
-        # ---------- CHAMA FASE 2  ----------
+        # fase 2
         try:
-            # passa BASE_DIR para fase2 para que ela carregue sprites/sons do folder assets
             resultado_fase2 = fase2.run(screen, clock, font, BASE_DIR)
         except Exception as e:
-            # se der erro aqui, mostramos o traceback para diagnosticar (não seguir silenciosamente)
             import traceback
             print("Erro ao executar fase2 (traceback):")
             traceback.print_exc()
             resultado_fase2 = None
 
         if resultado_fase2 == "LOSE":
-            # se perder na fase2, mostra game over e volta ao menu
-            mostrar_game_over(screen, clock, GAME_OVER_BG)
+            mostrar_game_over(screen, clock, PRESA_VIDEO_BG)
             continue
 
-        # NOVA LINHA (mínima mudança): se as câmeras gravaram, é game over imediato
         if resultado_fase2 == "RECORDED":
-            mostrar_game_over(screen, clock, GAME_OVER_BG)
+            mostrar_game_over(screen, clock, PRESA_VIDEO_BG)
             continue
 
-        # Antes de chamar a Fase 3, injetamos um proxy seguro em fase3.show_end_screen
-        # que distingue vitória de derrota pelo `title` passado.
+        # proxy end screen (fase 3)
         try:
             def _proxy_show_end_screen(title, msg, color):
                 t = (title or "").upper()
 
-                # derrota
                 if ("GAME" in t) or ("OVER" in t):
-                    # mostra game over com sua arte
-                    return mostrar_game_over(screen, clock, GAME_OVER_BG)
+                    return mostrar_game_over(screen, clock, PRESA_VIDEO_BG)
 
-                # vitória / missão concluída
                 if ("MISS" in t) or ("CONCLU" in t) or ("WIN" in t) or ("VIT" in t):
-                    # mostra tela de vitória (usa VICTORY_BG se existir)
                     return mostrar_victory(screen, clock, VICTORY_BG, title, msg)
 
-                # fallback: trata como derrota
-                return mostrar_game_over(screen, clock, GAME_OVER_BG)
+                return mostrar_game_over(screen, clock, PRESA_VIDEO_BG)
 
             fase3.show_end_screen = _proxy_show_end_screen
         except Exception as e:
             print("Aviso: não foi possível sobrescrever show_end_screen em fase3:", e)
 
-        # chama Fase 3 
         fase3.run(screen, clock, font, BASE_DIR)
 
 

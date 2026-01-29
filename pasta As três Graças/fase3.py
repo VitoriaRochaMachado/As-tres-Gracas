@@ -495,13 +495,16 @@ def show_end_screen_local(screen, clock, font, title, msg, color, bg_image=None,
     else:
         screen.fill((15, 15, 20))
 
-    t = font.render(title, True, color)
     t2 = font.render(msg, True, WHITE)
     t3 = font.render("Pressione R para Reiniciar ou ESC para Sair", True, HINT_COLOR)
 
-    screen.blit(t, (WIDTH//2 - t.get_width()//2, HEIGHT//2 - 80))
+    if not bg_image:
+        t = font.render(title, True, color)
+        screen.blit(t, (WIDTH//2 - t.get_width()//2, HEIGHT//2 - 80))
+
     screen.blit(t2, (WIDTH//2 - t2.get_width()//2, HEIGHT//2 - 30))
     screen.blit(t3, (WIDTH//2 - t3.get_width()//2, HEIGHT - 90))
+
 
     pygame.display.flip()
 
@@ -793,7 +796,7 @@ def run(screen, clock, font, base_dir=None):
                     "",
                     "",
                     ALARM_COLOR,
-                    GAME_OVER_BG,
+                    PRESA_VIDEO_BG,
                     game_over_sound
                 )
 
@@ -809,18 +812,14 @@ def run(screen, clock, font, base_dir=None):
             except Exception:
                 pass
 
-            if child_caught:
-                ending = "Estátua recuperada, mas o vídeo incrimina — Gerluce presa."
-                bg = PRESA_VIDEO_BG
-                end_sound = game_over_sound
-            elif alarm:
-                ending = "Fugiu com tensão: mas suspeitas permanecem."
-                bg = VICTORY_BG
-                end_sound = victory_sound
+                # sempre vitória ao sair com a estátua (independente de câmeras)
+            if alarm:
+                ending = "MISSÃO CONCLUÍDA"
             else:
-                ending = "Sucesso limpo: Gerluce escapou. Justiça feita!"
-                bg = VICTORY_BG
-                end_sound = victory_sound
+                ending = "MISSÃO CONCLUÍDA"
+
+            bg = VICTORY_BG
+            end_sound = victory_sound
 
             return show_end_screen_local(
                 screen, clock, font,

@@ -249,6 +249,8 @@ class Camera:
         self.max_angle = float(max_angle) if max_angle is not None else None
         self.sweep_speed = float(sweep_speed)
         self.sweep_dir = 1  # 1 -> increasing angle, -1 -> decreasing
+        self.sprite = None
+
 
     def update(self, dt):
         if self.min_angle is not None and self.max_angle is not None and self.sweep_speed != 0:
@@ -285,7 +287,15 @@ class Camera:
         return True
 
     def draw(self, surf):
-        pygame.draw.rect(surf, CAM_COLOR, self.rect)
+        if self.sprite:
+            try:
+                img = pygame.transform.smoothscale(self.sprite, self.rect.size)
+            except Exception:
+                img = pygame.transform.scale(self.sprite, self.rect.size)
+            surf.blit(img, self.rect.topleft)
+        else:
+            pygame.draw.rect(surf, CAM_COLOR, self.rect)
+
         a1 = math.radians(self.angle - CAM_FOV_ANGLE/2)
         a2 = math.radians(self.angle + CAM_FOV_ANGLE/2)
         p1 = self.pos + pygame.Vector2(math.cos(a1), math.sin(a1)) * CAM_FOV_DIST
@@ -316,10 +326,24 @@ def build_walls(sw, sh):
         pygame.Rect(int(sw*0.742),int(sh*0.156),16,int(sh*0.688)),
     ]
 
+def _load_camera_sprite(base_dir=None):
+    try:
+        if base_dir:
+            p = os.path.join(base_dir, "assets", "camera.png")
+        else:
+            p = os.path.join("assets", "camera.png")
+        if os.path.exists(p):
+            return pygame.image.load(p).convert_alpha()
+    except Exception:
+        pass
+    return None
+
+
 
 # ----- RUN -----
 def run(screen, clock, font, base_dir=None):
     SW, SH = screen.get_size()
+    cam_sprite = _load_camera_sprite(base_dir)
     alarm_sound, sabotage_sound = _load_sounds(base_dir)
     sprites_ok, idle_img, walk_imgs, idle_dir, walk_dir, base_w, base_h = _load_player_sprites(base_dir)
 
@@ -419,7 +443,10 @@ def run(screen, clock, font, base_dir=None):
     Camera(int(SW*0.86), int(SH*0.40), 0, -50, 50, 25.0),
     Camera(int(SW*0.86), int(SH*0.60), 0, -50, 50, 25.0),
     Camera(int(SW*0.86), int(SH*0.80), 0, -50, 50, 25.0),
-]
+]   
+    for c in cams:
+        c.sprite = cam_sprite
+
 
 
     panel = pygame.Rect(int(SW*0.49), int(SH*0.18), 40, 40)
@@ -522,8 +549,6 @@ def run(screen, clock, font, base_dir=None):
             alarm_playing = False
             return "RECORDED"
 
-        if player.rect.right >= SW - 64 and not cams:
-            stop_alarm(); return "CLEAN"
 
         draw_floor_and_walls(walls)
         pygame.draw.rect(screen, PANEL_COLOR, door_rect)
