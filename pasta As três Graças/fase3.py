@@ -16,7 +16,7 @@ GUARD_COLOR = (30,30,100)
 STATUE_COLOR = (210,180,60)
 ALARM_COLOR = (220,20,20)
 BG_COLOR = (20,20,25)
-WALL_COLOR = (80,80,80)
+WALL_COLOR = (25,25,25)
 HINT_COLOR = (180,180,255)
 DOOR_COLOR = (100,40,20)
 MAT_COLOR = (130,30,80)
@@ -135,7 +135,9 @@ def _trim_sprite(surf):
 # ----- ENTITIES -----
 class Player:
     def __init__(self, x,y):
-        self.rect = pygame.Rect(x, y, 45, 60)
+        self.rect = pygame.Rect(x, y, 64, 96)
+        self.hitbox = self.rect.inflate(-30, -40)
+        self.hitbox.midbottom = self.rect.midbottom
 
         self.speed = PLAYER_SPEED
         self.stealing = False
@@ -143,7 +145,7 @@ class Player:
         self.has_statue = False
         self.mask = False
 
-        # --- sprite support (MÍNIMA ALTERAÇÃO) ---
+        # --- sprite support 
         self.images_ok = False
         self.idle_image = None
         self.walk_images = []
@@ -172,12 +174,10 @@ class Player:
             if l != 0:
                 dx /= l; dy /= l
 
-        # <<< ADIÇÃO MÍNIMA: atualiza facing com base em dx >>>
         if dx < 0:
             self.facing_left = True
         elif dx > 0:
             self.facing_left = False
-        # <<< fim da adição >>>
 
         if dx != 0 or dy != 0:
             if abs(dx) > abs(dy):
@@ -194,18 +194,19 @@ class Player:
         # atualiza flag de movimento (usada para animação)
         self.moving = (dx != 0 or dy != 0)
 
-        self.rect.x += dx * self.speed * dt
+        self.hitbox.x += dx * self.speed * dt
         self._collide(walls, dx, 0)
-        self.rect.y += dy * self.speed * dt
+        self.hitbox.y += dy * self.speed * dt
         self._collide(walls, 0, dy)
+        self.rect.midbottom = self.hitbox.midbottom
 
     def _collide(self, walls, dx, dy):
         for w in walls:
-            if self.rect.colliderect(w):
-                if dx > 0: self.rect.right = w.left
-                if dx < 0: self.rect.left = w.right
-                if dy > 0: self.rect.bottom = w.top
-                if dy < 0: self.rect.top = w.bottom
+            if self.hitbox.colliderect(w):
+                if dx > 0: self.hitbox.right = w.left
+                if dx < 0: self.hitbox.left = w.right
+                if dy > 0: self.hitbox.bottom = w.top
+                if dy < 0: self.hitbox.top = w.bottom
 
     def draw(self, surf):
         # Se houver sprites, desenha sprite escalado; senão, retângulo (fallback)
@@ -391,18 +392,6 @@ def show_end_screen_local(screen, clock, font, title, msg, color, bg_image=None,
 
 # ----- RUN API -----
 def run(screen, clock, font, base_dir=None):
-        # Ajusta WIDTH/HEIGHT para o tamanho real do `screen` passado pelo main (não altera gameplay).
-    try:
-        sw, sh = screen.get_size()
-        globals()['WIDTH'], globals()['HEIGHT'] = sw, sh
-    except Exception:
-        pass
-
-    """
-    Substitui o antigo main(). Chamado pelo main.py como:
-        fase2.run(screen, clock, font, BASE_DIR)
-    Recebe screen/clock/font já inicializados pelo chamador.
-    """
     # carregar sons e imagens (uma vez)
     alarm_sound, game_over_sound, victory_sound = _load_sounds(base_dir)
     GAME_OVER_BG, VICTORY_BG, PRESA_VIDEO_BG = _load_images(base_dir)
@@ -431,6 +420,30 @@ def run(screen, clock, font, base_dir=None):
     except Exception:
         pass
     # ----------------------------------------------
+
+    # --- PISO + OVERLAY + TIMER BOX ---
+    floor_tile = None
+    try:
+        if base_dir:
+            floor_path = os.path.join(base_dir, "assets", "piso_madeira.png")
+        else:
+            floor_path = os.path.join("assets", "piso_madeira.png")
+        floor_img = pygame.image.load(floor_path).convert()
+        floor_tile = pygame.transform.smoothscale(floor_img, (74, 74))
+    except Exception:
+        floor_tile = None
+
+    floor_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    floor_overlay.fill((0, 0, 0, 100))
+
+    try:
+        if base_dir:
+            timer_path = os.path.join(base_dir, "assets", "timer_box.png")
+        else:
+            timer_path = os.path.join("assets", "timer_box.png")
+        timer_box_img = pygame.image.load(timer_path).convert_alpha()
+    except Exception:
+        timer_box_img = None
 
     # --- CARREGA SPRITES DO JOGADOR (MÍNIMA ALTERAÇÃO) ---
     player_idle = None
@@ -535,7 +548,7 @@ def run(screen, clock, font, base_dir=None):
     player.anim_speed = 0.12
     player._prev_facing = player.facing
 
-    statue = Statue(600, 220)
+    statue = Statue(600, 250)
     guards = [
         Guard([(500,60),(780,60),(780,300),(500,300)]),
         Guard([(260,200),(420,200),(420,320),(260,320)], speed=75),
@@ -615,7 +628,7 @@ def run(screen, clock, font, base_dir=None):
         if player.rect.colliderect(child_area): camera_recorded = True
 
         keys = pygame.key.get_pressed()
-        if not statue.stolen and player.rect.colliderect(statue.rect):
+        if not statue.stolen and player.hitbox.colliderect(statue.rect):
             if keys[pygame.K_SPACE]:
                 player.stealing = True
                 player.steal_timer += dt
@@ -697,7 +710,15 @@ def run(screen, clock, font, base_dir=None):
             )
 
         # DRAWING
-        screen.fill(BG_COLOR)
+        if floor_tile:
+            tw, th = floor_tile.get_width(), floor_tile.get_height()
+            for yy in range(0, HEIGHT, th):
+                for xx in range(0, WIDTH, tw):
+                    screen.blit(floor_tile, (xx, yy))
+            screen.blit(floor_overlay, (0, 0))
+        else:
+            screen.fill(BG_COLOR)
+
         for w in walls: pygame.draw.rect(screen, WALL_COLOR, w)
         mat_rect = pygame.Rect(door_x - 14, door_y + door_h, door_w + 28, 22)
         pygame.draw.rect(screen, MAT_COLOR, mat_rect)
@@ -710,9 +731,7 @@ def run(screen, clock, font, base_dir=None):
 
         pygame.draw.rect(screen, (40,120,40), exit_zone, 2)
         draw_text(screen, "Saída", exit_zone.x+8, exit_zone.y+4, HINT_COLOR, font)
-        pygame.draw.rect(screen, (60,60,60), child_area, 1)
-        draw_text(screen, "Vizinho", child_area.x+6, child_area.y+6, HINT_COLOR, font)
-
+    
         statue.draw(screen)
         for g in guards: g.draw(screen)
         player.draw(screen)  # agora desenha sprite se disponível
@@ -729,6 +748,21 @@ def run(screen, clock, font, base_dir=None):
             pygame.draw.rect(screen, (200,200,200), (WIDTH-220, hud_y, 180, 14), 2)
             pygame.draw.rect(screen, (200,120,40), (WIDTH-220, hud_y, w, 14))
             draw_text(screen, "Roubando...", WIDTH-220, hud_y-22, WHITE, font)
+
+        if timer_box_img:
+            box_w, box_h = 120, 110
+            box = pygame.transform.smoothscale(timer_box_img, (box_w, box_h))
+            x = WIDTH - 16 - box_w - 12
+            y = 16
+            screen.blit(box, (x, y))
+            tempo_font = pygame.font.SysFont("consolas", 30, bold=True)
+            tempo_val = int(alarm_timer) if alarm else 0
+            tempo_txt = tempo_font.render(f"{tempo_val}", True, (255,255,255))
+            screen.blit(
+                tempo_txt,
+                (x + box_w//2 - tempo_txt.get_width()//2,
+                 y + box_h//2 - tempo_txt.get_height()//2)
+            )
 
         draw_text(screen, "WASD: Mover | SPACE: Roubar | E: Porta", 18, 6, WHITE, font)
         pygame.display.flip()
