@@ -55,14 +55,12 @@ def _load_sounds(base_dir=None):
             except Exception:
                 alarm_sound = None
             try:
-                # Carrega som de game over (efeito curto)
                 if os.path.exists(go_path):
                     game_over_sound = pygame.mixer.Sound(go_path)
                     game_over_sound.set_volume(0.75)
             except Exception:
                 game_over_sound = None
             try:
-                # Carrega som de vitória (novo, opcional)
                 if os.path.exists(vi_path):
                     victory_sound = pygame.mixer.Sound(vi_path)
                     victory_sound.set_volume(0.85)
@@ -88,7 +86,6 @@ def _load_images(base_dir=None):
             vi_path = "assets/vitoria.png"
             pv_path = "assets/Presa_video.png"
 
-        # carregar game over (se existir)
         try:
             if os.path.exists(go_path):
                 GAME_OVER_BG = pygame.image.load(go_path).convert()
@@ -96,7 +93,6 @@ def _load_images(base_dir=None):
         except Exception:
             GAME_OVER_BG = None
 
-        # carregar victory (opcional)
         try:
             if os.path.exists(vi_path):
                 VICTORY_BG = pygame.image.load(vi_path).convert()
@@ -104,7 +100,6 @@ def _load_images(base_dir=None):
         except Exception:
             VICTORY_BG = None
 
-        # carregar presa_video (opcional)
         try:
             if os.path.exists(pv_path):
                 PRESA_VIDEO_BG = pygame.image.load(pv_path).convert()
@@ -119,6 +114,7 @@ def _load_images(base_dir=None):
 
     return GAME_OVER_BG, VICTORY_BG, PRESA_VIDEO_BG
 
+
 def _trim_sprite(surf):
     try:
         mask = pygame.mask.from_surface(surf)
@@ -131,6 +127,45 @@ def _trim_sprite(surf):
         return surf.subsurface(r).copy()
     except Exception:
         return surf
+    
+def _load_guard_sprites(base_dir=None):
+    idle_dir = {}
+    walk_dir = {}
+    ok = False
+    try:
+        if base_dir:
+            gdir = os.path.join(base_dir, "assets", "police")
+        else:
+            gdir = os.path.join("assets", "police")
+
+        idle_files = {
+            "down": "idledown.png",
+            "up": "idleup.png",
+            "left": "idleleft.png",
+            "right": "idleright.png",
+        }
+        for d, fn in idle_files.items():
+            p = os.path.join(gdir, fn)
+            if os.path.exists(p):
+                idle_dir[d] = pygame.image.load(p).convert_alpha()
+
+        for d in ["down","up","left","right"]:
+            frames = []
+            for i in range(3):  # walk_0..2
+                p = os.path.join(gdir, f"walk_{i}{d}.png")
+                if os.path.exists(p):
+                    frames.append(pygame.image.load(p).convert_alpha())
+            if frames:
+                walk_dir[d] = frames
+
+        if idle_dir:
+            ok = True
+
+    except Exception:
+        ok = False
+
+    return ok, idle_dir, walk_dir
+
 
 # ----- ENTITIES -----
 class Player:
@@ -145,7 +180,7 @@ class Player:
         self.has_statue = False
         self.mask = False
 
-        # --- sprite support 
+        # --- sprite support
         self.images_ok = False
         self.idle_image = None
         self.walk_images = []
@@ -191,7 +226,6 @@ class Player:
                 elif dy > 0:
                     self.facing = "down"
 
-        # atualiza flag de movimento (usada para animação)
         self.moving = (dx != 0 or dy != 0)
 
         self.hitbox.x += dx * self.speed * dt
@@ -199,6 +233,7 @@ class Player:
         self.hitbox.y += dy * self.speed * dt
         self._collide(walls, 0, dy)
         self.rect.midbottom = self.hitbox.midbottom
+
 
     def _collide(self, walls, dx, dy):
         for w in walls:
@@ -209,7 +244,6 @@ class Player:
                 if dy < 0: self.hitbox.top = w.bottom
 
     def draw(self, surf):
-        # Se houver sprites, desenha sprite escalado; senão, retângulo (fallback)
         if self.images_ok and (self.idle_image is not None):
             if self.moving:
                 frames = self.walk_dir.get(self.facing)
@@ -231,10 +265,8 @@ class Player:
             except Exception:
                 sprite_scaled = pygame.transform.scale(sprite, new_size)
 
-            # <<< ADIÇÃO MÍNIMA: flip horizontal quando estiver virado à esquerda >>>
             if self.facing_left and (self.facing not in self.walk_dir) and (self.facing not in self.idle_dir):
                 sprite_scaled = pygame.transform.flip(sprite_scaled, True, False)
-            # <<< fim da adição >>>
 
             x = self.rect.centerx - sprite_scaled.get_width() // 2
             y = self.rect.centery - sprite_scaled.get_height() // 2
@@ -253,8 +285,20 @@ class Guard:
         self.pause = pause
         self.pause_timer = 0
         self.direction = pygame.Vector2(1,0)
-        self.rect = pygame.Rect(self.pos.x-14, self.pos.y-14, 28,28)
+        self.rect = pygame.Rect(self.pos.x-14, self.pos.y-14, 70, 70)
         self.alerted = False
+        self.sprite = None
+        self._sprite_cache = {}
+        self.images_ok = False
+        self.idle_dir = {}
+        self.walk_dir = {}
+        self.facing = "down"
+        self.frame = 0
+        self.anim_timer = 0.0
+        self.anim_speed = 0.12
+        self.moving = False
+
+
 
     def update(self, dt):
         if self.alerted: return
@@ -268,27 +312,81 @@ class Guard:
                 self.i = (self.i + 1) % len(self.path)
         else:
             self.direction = vec.normalize()
+            if abs(self.direction.x) > abs(self.direction.y):
+                self.facing = "left" if self.direction.x < 0 else "right"
+            else:
+                self.facing = "up" if self.direction.y < 0 else "down"
+            self.moving = True
+
             self.pos += self.direction * self.speed * dt
             self.rect.center = (round(self.pos.x), round(self.pos.y))
+        
+        if self.images_ok and self.moving:
+            self.anim_timer += dt
+            if self.anim_timer >= self.anim_speed:
+                self.anim_timer = 0.0
+                frames = self.walk_dir.get(self.facing)
+                if frames:
+                    self.frame = (self.frame + 1) % len(frames)
+        else:
+            self.frame = 0
+            self.anim_timer = 0.0
+
 
     def chase(self, player, dt):
         vec = pygame.Vector2(player.rect.center) - self.pos
         if vec.length() > 4:
             self.direction = vec.normalize()
+            if abs(self.direction.x) > abs(self.direction.y):
+                self.facing = "left" if self.direction.x < 0 else "right"
+            else:
+                self.facing = "up" if self.direction.y < 0 else "down"
+            self.moving = True
+
             self.pos += self.direction * (self.speed*1.2) * dt
             self.rect.center = (round(self.pos.x), round(self.pos.y))
+        
+        if self.images_ok and self.moving:
+            self.anim_timer += dt
+            if self.anim_timer >= self.anim_speed:
+                self.anim_timer = 0.0
+                frames = self.walk_dir.get(self.facing)
+                if frames:
+                    self.frame = (self.frame + 1) % len(frames)
+        else:
+            self.frame = 0
+            self.anim_timer = 0.0
+
 
     def draw(self, surf):
-        pygame.draw.rect(surf, GUARD_COLOR, self.rect)
         start = pygame.Vector2(self.rect.center)
         dir_angle = math.degrees(math.atan2(self.direction.y, self.direction.x))
+
+        # --- desenha lanterna (cone amarelo) ---
         left_angle = math.radians(dir_angle - FOV_ANGLE/2)
         right_angle = math.radians(dir_angle + FOV_ANGLE/2)
         p1 = start + pygame.Vector2(math.cos(left_angle), math.sin(left_angle)) * FOV_DISTANCE
         p2 = start + pygame.Vector2(math.cos(right_angle), math.sin(right_angle)) * FOV_DISTANCE
         s = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        pygame.draw.polygon(s, (50,50,150,30), [start, p1, p2])
+        pygame.draw.polygon(s, (255, 240, 160, 40), [start, p1, p2])
         surf.blit(s, (0,0))
+
+        # --- desenha policial (sprite ou fallback retângulo) ---
+        if self.images_ok and self.idle_dir:
+            if self.moving and self.walk_dir.get(self.facing):
+                sprite = self.walk_dir[self.facing][self.frame]
+            else:
+                sprite = self.idle_dir.get(self.facing, next(iter(self.idle_dir.values())))
+
+            try:
+                sprite2 = pygame.transform.smoothscale(sprite, self.rect.size)
+            except Exception:
+                sprite2 = pygame.transform.scale(sprite, self.rect.size)
+
+            surf.blit(sprite2, self.rect.topleft)
+        else:
+            pygame.draw.rect(surf, GUARD_COLOR, self.rect)
+
 
     def can_see_player(self, player, walls):
         start = pygame.Vector2(self.rect.center)
@@ -319,12 +417,23 @@ class Statue:
             pygame.draw.rect(surf, (255,255,255), self.rect.inflate(-10,-10), 2)
 
 # ----- LEVEL SETUP -----
-def build_walls(door_closed=True, door_rect=None):
+def build_walls(door_closed=True, door_rect=None, exit_door_rect=None):
     walls = []
     walls.append(pygame.Rect(0,0,WIDTH,16))
     walls.append(pygame.Rect(0,0,16,HEIGHT))
     walls.append(pygame.Rect(0,HEIGHT-16,WIDTH,16))
-    walls.append(pygame.Rect(WIDTH-16,0,16,HEIGHT))
+
+    # parede direita com "buraco" (porta estilo fase 2)
+    if exit_door_rect is None:
+        walls.append(pygame.Rect(WIDTH-16,0,16,HEIGHT))
+    else:
+        top_h = max(0, exit_door_rect.y)
+        bottom_y = exit_door_rect.bottom
+        bottom_h = max(0, HEIGHT - bottom_y)
+        if top_h > 0:
+            walls.append(pygame.Rect(WIDTH-16, 0, 16, top_h))
+        if bottom_h > 0:
+            walls.append(pygame.Rect(WIDTH-16, bottom_y, 16, bottom_h))
 
     mansion_x, mansion_y, mansion_w, mansion_h = 200, 120, 600, 200
     top_wall = pygame.Rect(mansion_x, mansion_y, mansion_w, 16)
@@ -356,11 +465,6 @@ def draw_text(s, txt, x,y, color=WHITE, font=None):
 
 # ----- TELAS DE FIM (reutilizáveis) -----
 def show_end_screen_local(screen, clock, font, title, msg, color, bg_image=None, game_over_sound=None):
-    """
-    Exibe a tela final. Se bg_image for fornecida, usa-a como fundo.
-    Retorna True se o jogador pedir para reiniciar (R).
-    """
-    # tenta tocar som de fim (se fornecido)
     try:
         if game_over_sound:
             game_over_sound.play()
@@ -392,18 +496,19 @@ def show_end_screen_local(screen, clock, font, title, msg, color, bg_image=None,
 
 # ----- RUN API -----
 def run(screen, clock, font, base_dir=None):
-    # carregar sons e imagens (uma vez)
     alarm_sound, game_over_sound, victory_sound = _load_sounds(base_dir)
     GAME_OVER_BG, VICTORY_BG, PRESA_VIDEO_BG = _load_images(base_dir)
+    guards_ok, guards_idle_dir, guards_walk_dir = _load_guard_sprites(base_dir)
 
-    # --- MÚSICA DE FUNDO DA FASE 3 (ADIÇÃO MÍNIMA) ---
+
+
+    # --- MÚSICA DE FUNDO DA FASE 3 ---
     try:
         if base_dir:
             fase3_music_path = os.path.join(base_dir, "assets", "fase3_som.mp3")
         else:
             fase3_music_path = "assets/fase3_som.mp3"
 
-        # garante que o mixer esteja inicializado (o _load_sounds já tentará, mas checamos novamente com try)
         if pygame.mixer.get_init() is None:
             try:
                 pygame.mixer.init()
@@ -414,12 +519,11 @@ def run(screen, clock, font, base_dir=None):
             try:
                 pygame.mixer.music.load(fase3_music_path)
                 pygame.mixer.music.set_volume(0.5)
-                pygame.mixer.music.play(-1)  # loop infinito
+                pygame.mixer.music.play(-1)
             except Exception:
                 pass
     except Exception:
         pass
-    # ----------------------------------------------
 
     # --- PISO + OVERLAY + TIMER BOX ---
     floor_tile = None
@@ -445,7 +549,7 @@ def run(screen, clock, font, base_dir=None):
     except Exception:
         timer_box_img = None
 
-    # --- CARREGA SPRITES DO JOGADOR (MÍNIMA ALTERAÇÃO) ---
+    # --- CARREGA SPRITES DO JOGADOR ---
     player_idle = None
     player_walk = []
     images_ok = False
@@ -486,7 +590,6 @@ def run(screen, clock, font, base_dir=None):
         if player_idle is None:
             player_idle = player_idle_dir.get("down", None)
 
-        # tenta carregar até 8 frames de walk (para ser tolerante)
         for i in range(8):
             p = os.path.join(player_dir, f"walk_{i}.png")
             if os.path.exists(p):
@@ -524,18 +627,21 @@ def run(screen, clock, font, base_dir=None):
 
     except Exception:
         images_ok = False
-    # --------------------------------------------------------------------
 
-    # inicialização local de entidades / estado
+    # --------- Porta de saída estilo fase 2 (no meio da parede direita) ---------
+    exit_door_h = int(HEIGHT * 0.16)
+    exit_door_y = HEIGHT//2 - exit_door_h//2
+    exit_door_rect = pygame.Rect(WIDTH-16, exit_door_y, 16, exit_door_h)
+
     door_w, door_h = 120, 16
     door_x, door_y = 200 + (600 - door_w) // 2, 120 + 200 - 16
     door_rect = pygame.Rect(door_x, door_y, door_w, door_h)
     door_closed, door_open_progress = True, 0.0
     DOOR_OPEN_TIME = 0.4
 
-    walls = build_walls(door_closed=True, door_rect=door_rect)
+    walls = build_walls(door_closed=True, door_rect=door_rect, exit_door_rect=exit_door_rect)
+
     player = Player(100, HEIGHT//2)
-    # injeta atributos de sprite no jogador (mínima alteração)
     player.images_ok = images_ok
     player.idle_image = player_idle
     player.walk_images = player_walk
@@ -553,27 +659,29 @@ def run(screen, clock, font, base_dir=None):
         Guard([(500,60),(780,60),(780,300),(500,300)]),
         Guard([(260,200),(420,200),(420,320),(260,320)], speed=75),
     ]
+    for g in guards:
+        g.images_ok = guards_ok
+        g.idle_dir = guards_idle_dir
+        g.walk_dir = guards_walk_dir
+
 
     alarm, alarm_timer = False, 0.0
     ALERT_DURATION = 12.0
     child_caught, camera_recorded = False, False
 
-    exit_zone = pygame.Rect(WIDTH-16-90, HEIGHT-16-26, 90, 26)
     child_area = pygame.Rect(120, HEIGHT-140, 160, 120)
 
-    running = True
-    while running:
+    while True:
         dt = clock.tick(FPS) / 1000.0
         for event in pygame.event.get():
             if event.type == pygame.QUIT: pygame.quit(); sys.exit()
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_e and player.rect.colliderect(door_rect.inflate(40,40)):
+                if event.key == pygame.K_e and player.hitbox.colliderect(door_rect.inflate(40,40)):
                     door_closed = False
                 if event.key == pygame.K_ESCAPE: pygame.quit(); sys.exit()
 
         player.update(dt, walls)
 
-        # animação do jogador (usa dt; mínima alteração: mantém no loop de run)
         if player.images_ok:
             if player.moving:
                 if player.facing != player._prev_facing:
@@ -594,11 +702,11 @@ def run(screen, clock, font, base_dir=None):
             door_open_progress += dt / DOOR_OPEN_TIME
             if door_open_progress >= 1.0:
                 door_open_progress = 1.0
-                walls = build_walls(door_closed=False, door_rect=door_rect)
+                walls = build_walls(door_closed=False, door_rect=door_rect, exit_door_rect=exit_door_rect)
             else:
                 current_h = int(door_h * (1.0 - door_open_progress))
                 anim_rect = pygame.Rect(door_x, door_y + (door_h - current_h), door_w, current_h)
-                walls = build_walls(door_closed=True, door_rect=anim_rect if current_h>0 else None)
+                walls = build_walls(door_closed=True, door_rect=anim_rect if current_h>0 else None, exit_door_rect=exit_door_rect)
 
         for g in guards:
             if g.alerted: g.chase(player, dt)
@@ -625,7 +733,7 @@ def run(screen, clock, font, base_dir=None):
                     except Exception:
                         pass
 
-        if player.rect.colliderect(child_area): camera_recorded = True
+        if player.hitbox.colliderect(child_area): camera_recorded = True
 
         keys = pygame.key.get_pressed()
         if not statue.stolen and player.hitbox.colliderect(statue.rect.inflate(24,24)):
@@ -650,63 +758,58 @@ def run(screen, clock, font, base_dir=None):
             player.stealing = False
             player.steal_timer = max(0, player.steal_timer - dt*0.8)
 
-        # FIM DE JOGO: CAPTURA
         for g in guards:
-            if g.rect.colliderect(player.rect) and g.alerted:
+            if g.rect.colliderect(player.hitbox) and g.alerted:
                 if alarm_sound:
                     try:
                         alarm_sound.stop()
                     except Exception:
                         pass
-                # tenta parar a música de fundo antes de mostrar a tela de game over
                 try:
                     pygame.mixer.music.stop()
                 except Exception:
                     pass
-                # usa a imagem GAME_OVER_BG como fundo, se carregada
                 return show_end_screen_local(
                     screen, clock, font,
                     "",
                     "",
                     ALARM_COLOR,
                     GAME_OVER_BG,
-                    game_over_sound  # << som de derrota
+                    game_over_sound
                 )
 
-        # FIM DE JOGO: SUCESSO
-        if player.has_statue and player.rect.colliderect(exit_zone):
+        # saída estilo fase2
+        if player.has_statue and player.hitbox.colliderect(exit_door_rect.inflate(40,40)):
             if alarm_sound:
                 try:
                     alarm_sound.stop()
                 except Exception:
                     pass
-            # para a música de fundo antes das telas finais
             try:
                 pygame.mixer.music.stop()
             except Exception:
                 pass
-            # Se o vídeo gravou a criança, usamos PRESA_VIDEO_BG
+
             if child_caught:
                 ending = "Estátua recuperada, mas o vídeo incrimina — Gerluce presa."
                 bg = PRESA_VIDEO_BG
-                end_sound = game_over_sound  # mantém game over se o final for "punição"
+                end_sound = game_over_sound
             elif alarm:
                 ending = "Fugiu com tensão: mas suspeitas permanecem."
                 bg = VICTORY_BG
-                end_sound = victory_sound  # vitória tensa — toca som de vitória se disponível
+                end_sound = victory_sound
             else:
                 ending = "Sucesso limpo: Gerluce escapou. Justiça feita!"
                 bg = VICTORY_BG
-                end_sound = victory_sound  # sucesso limpo — som de vitória
+                end_sound = victory_sound
 
-            # usa VICTORY_BG ou PRESA_VIDEO_BG se existir
             return show_end_screen_local(
                 screen, clock, font,
                 "MISSÃO CONCLUÍDA",
                 ending,
                 (180,240,180),
                 bg,
-                end_sound  # passa o som apropriado (vitória ou game_over em casos especiais)
+                end_sound
             )
 
         # DRAWING
@@ -719,7 +822,12 @@ def run(screen, clock, font, base_dir=None):
         else:
             screen.fill(BG_COLOR)
 
-        for w in walls: pygame.draw.rect(screen, WALL_COLOR, w)
+        for w in walls:
+            pygame.draw.rect(screen, WALL_COLOR, w)
+
+        # porta de saída estilo fase2 (sem contorno)
+        pygame.draw.rect(screen, DOOR_COLOR, exit_door_rect)
+
         mat_rect = pygame.Rect(door_x - 14, door_y + door_h, door_w + 28, 22)
         pygame.draw.rect(screen, MAT_COLOR, mat_rect)
         draw_text(screen, "ENTRADA", door_x + door_w//2 - 28, mat_rect.y + 2, WHITE, font)
@@ -729,11 +837,10 @@ def run(screen, clock, font, base_dir=None):
             if current_h > 0:
                 pygame.draw.rect(screen, DOOR_COLOR, (door_x, door_y + (door_h - current_h), door_w, current_h))
 
-        pygame.draw.rect(screen, DOOR_COLOR, exit_zone)
-
         statue.draw(screen)
-        for g in guards: g.draw(screen)
-        player.draw(screen)  # agora desenha sprite se disponível
+        for g in guards:
+            g.draw(screen)
+        player.draw(screen)
 
         if door_closed and player.hitbox.colliderect(door_rect.inflate(40,40)):
             draw_text(screen, "Pressione E para abrir a porta", 18, HEIGHT-54, HINT_COLOR, font)
