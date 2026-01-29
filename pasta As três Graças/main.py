@@ -23,36 +23,37 @@ GAME_OVER_SOUND = None
 
 # ---------------- TUTORIAL ----------------
 def mostrar_tutorial(screen, clock):
-    font = pygame.font.SysFont("consolas", 22)
-    lines = [
-        "OBJETIVO:",
-        "Infiltre-se e recupere a estatueta.",
-        "",
-        "CONTROLES:",
-        "WASD / Setas  - Mover",
-        "SPACE         - Interagir / Roubar",
-        "E             - Abrir portas",
-        "",
-        "Evite guardas e câmeras.",
-        "",
-        "Pressione ENTER para voltar ao menu."
-    ]
+    # carrega as 4 imagens do tutorial
+    pages = []
+    try:
+        for i in range(1, 5):
+            img = pygame.image.load(asset_path("assets", f"tuto{i}.png")).convert_alpha()
+            img = pygame.transform.scale(img, (WIDTH, HEIGHT))
+            pages.append(img)
+    except Exception:
+        # se falhar, volta pro menu sem travar
+        return
+
+    idx = 0
 
     while True:
-        clock.tick(30)
+        clock.tick(60)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit(); sys.exit()
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
-                return
 
-        screen.fill((15, 15, 20))
-        y = 80
-        for l in lines:
-            txt = font.render(l, True, (235,235,220))
-            screen.blit(txt, (WIDTH//2 - txt.get_width()//2, y))
-            y += 32
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return
 
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                # <<< MUDANÇA: qualquer clique na tela avança
+                idx += 1
+                if idx >= len(pages):
+                    return
+
+        screen.blit(pages[idx], (0, 0))
         pygame.display.flip()
 
 
@@ -293,6 +294,7 @@ def main():
             choice = tela_inicial(screen, clock)
             if choice == "START": break
             if choice == "TUTORIAL":
+                pygame.event.clear()  # <<< MUDANÇA: evita "vazar" clique do menu pro tutorial
                 mostrar_tutorial(screen, clock)
 
         # fase 1
