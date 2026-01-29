@@ -21,7 +21,7 @@ HINT_COLOR = (180,180,255)
 # gameplay
 PLAYER_SPEED = 200
 TIME_LIMIT = 35.0
-SABOTAGE_TIME = 1.8
+SABOTAGE_TIME = 0.5
 CAM_FOV_ANGLE = 70
 CAM_FOV_DIST = 260
 
@@ -299,11 +299,18 @@ def draw_text(surf, txt, x, y, font, color=WHITE):
     surf.blit(font.render(txt, True, color), (x,y))
 
 def build_walls(sw, sh):
+    door_h = int(sh * 0.16)
+    door_y = sh//2 - door_h//2
+    wall_thick = 16
+
     return [
         pygame.Rect(0,0,sw,16),
         pygame.Rect(0,0,16,sh),
         pygame.Rect(0,sh-16,sw,16),
-        pygame.Rect(sw-16,0,16,sh),
+
+        pygame.Rect(sw-16, 0, wall_thick, door_y),
+        pygame.Rect(sw-16, door_y + door_h, wall_thick, sh - (door_y + door_h)),
+
         pygame.Rect(int(sw*0.234),int(sh*0.156),16,int(sh*0.688)),
         pygame.Rect(int(sw*0.488),int(sh*0.156),16,int(sh*0.688)),
         pygame.Rect(int(sw*0.742),int(sh*0.156),16,int(sh*0.688)),
@@ -396,13 +403,24 @@ def run(screen, clock, font, base_dir=None):
         except Exception: pass
 
     walls = build_walls(SW, SH)
+
+    door_h = int(SH * 0.16)
+    door_y = SH//2 - door_h//2
+    door_rect = pygame.Rect(SW-16, door_y, 16, door_h)
+
     player = Player(80, HEIGHT//2)
     player.images_ok, player.idle, player.walk, player.idle_dir, player.walk_dir, player.base_w, player.base_h = sprites_ok, idle_img, walk_imgs, idle_dir, walk_dir, base_w, base_h
 
     cams = [
-        Camera(int(SW*0.35), int(SH*0.25), -35, -60, 0, 30.0),
-        Camera(int(SW*0.60), int(SH*0.45), 215, 180, 250, 22.0),
-    ]
+    Camera(int(SW*0.35), int(SH*0.25), -35, -60, 0, 30.0),
+    Camera(int(SW*0.60), int(SH*0.45), 215, 180, 250, 22.0),
+
+    Camera(int(SW*0.86), int(SH*0.20), 0, -50, 50, 25.0),
+    Camera(int(SW*0.86), int(SH*0.40), 0, -50, 50, 25.0),
+    Camera(int(SW*0.86), int(SH*0.60), 0, -50, 50, 25.0),
+    Camera(int(SW*0.86), int(SH*0.80), 0, -50, 50, 25.0),
+]
+
 
     panel = pygame.Rect(int(SW*0.49), int(SH*0.18), 40, 40)
     panel_area = panel.inflate(120, 120)
@@ -430,6 +448,10 @@ def run(screen, clock, font, base_dir=None):
             stop_alarm(); return "LOSE"
 
         player.update(dt, walls)
+
+        if (not cams) and player.hitbox.colliderect(door_rect.inflate(40, 40)):
+            stop_alarm()
+            return "CLEAN"
 
         if player.images_ok:
             if player.moving:
@@ -462,6 +484,7 @@ def run(screen, clock, font, base_dir=None):
         if sabotage_success:
             sabotage_success_time += dt
             draw_floor_and_walls(walls)
+            pygame.draw.rect(screen, PANEL_COLOR, door_rect)
             for c in cams: c.draw(screen)
             draw_panel(panel)
             player.draw(screen)
@@ -488,6 +511,7 @@ def run(screen, clock, font, base_dir=None):
 
         if recorded:
             draw_floor_and_walls(walls)
+            pygame.draw.rect(screen, PANEL_COLOR, door_rect)
             for c in cams: c.draw(screen)
             draw_panel(panel)
             player.draw(screen)
@@ -502,6 +526,7 @@ def run(screen, clock, font, base_dir=None):
             stop_alarm(); return "CLEAN"
 
         draw_floor_and_walls(walls)
+        pygame.draw.rect(screen, PANEL_COLOR, door_rect)
         for c in cams: c.draw(screen)
         draw_panel(panel)
         player.draw(screen)

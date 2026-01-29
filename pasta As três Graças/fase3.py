@@ -26,7 +26,7 @@ PLAYER_SPEED = 200
 GUARD_SPEED = 90
 FOV_ANGLE = 60
 FOV_DISTANCE = 220
-STEAL_TIME = 2.0
+STEAL_TIME = 1.0
 
 # ----- SONS / ASSETS -----
 def _load_sounds(base_dir=None):
@@ -345,7 +345,7 @@ def build_walls(door_closed=True, door_rect=None):
         walls += [top_wall, left_wall, right_wall]
         if door_closed: walls.append(door_rect)
     
-    walls += [pygame.Rect(340,180,120,20), pygame.Rect(520,220,160,20), pygame.Rect(420,360,80,120)]
+    walls += [pygame.Rect(340,180,120,20), pygame.Rect(520,220,160,20)]
     return walls
 
 def draw_text(s, txt, x,y, color=WHITE, font=None):
@@ -558,7 +558,7 @@ def run(screen, clock, font, base_dir=None):
     ALERT_DURATION = 12.0
     child_caught, camera_recorded = False, False
 
-    exit_zone = pygame.Rect(60, 60, 120, 120)
+    exit_zone = pygame.Rect(WIDTH-16-90, HEIGHT-16-26, 90, 26)
     child_area = pygame.Rect(120, HEIGHT-140, 160, 120)
 
     running = True
@@ -628,7 +628,7 @@ def run(screen, clock, font, base_dir=None):
         if player.rect.colliderect(child_area): camera_recorded = True
 
         keys = pygame.key.get_pressed()
-        if not statue.stolen and player.hitbox.colliderect(statue.rect):
+        if not statue.stolen and player.hitbox.colliderect(statue.rect.inflate(24,24)):
             if keys[pygame.K_SPACE]:
                 player.stealing = True
                 player.steal_timer += dt
@@ -729,14 +729,13 @@ def run(screen, clock, font, base_dir=None):
             if current_h > 0:
                 pygame.draw.rect(screen, DOOR_COLOR, (door_x, door_y + (door_h - current_h), door_w, current_h))
 
-        pygame.draw.rect(screen, (40,120,40), exit_zone, 2)
-        draw_text(screen, "Saída", exit_zone.x+8, exit_zone.y+4, HINT_COLOR, font)
-    
+        pygame.draw.rect(screen, DOOR_COLOR, exit_zone)
+
         statue.draw(screen)
         for g in guards: g.draw(screen)
         player.draw(screen)  # agora desenha sprite se disponível
 
-        if door_closed and player.rect.colliderect(door_rect.inflate(40,40)):
+        if door_closed and player.hitbox.colliderect(door_rect.inflate(40,40)):
             draw_text(screen, "Pressione E para abrir a porta", 18, HEIGHT-54, HINT_COLOR, font)
 
         hud_y = HEIGHT - 26
