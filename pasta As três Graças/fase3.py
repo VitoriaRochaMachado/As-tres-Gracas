@@ -562,14 +562,8 @@ def run(screen, clock, font, base_dir=None):
     floor_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
     floor_overlay.fill((0, 0, 0, 100))
 
-    try:
-        if base_dir:
-            timer_path = os.path.join(base_dir, "assets", "timer_box.png")
-        else:
-            timer_path = os.path.join("assets", "timer_box.png")
-        timer_box_img = pygame.image.load(timer_path).convert_alpha()
-    except Exception:
-        timer_box_img = None
+    timer_box_img = None  
+
 
     # --- CARREGA SPRITES DO JOGADOR ---
     player_idle = None
@@ -873,20 +867,6 @@ def run(screen, clock, font, base_dir=None):
             pygame.draw.rect(screen, (200,120,40), (WIDTH-220, hud_y, w, 14))
             draw_text(screen, "Roubando...", WIDTH-220, hud_y-22, WHITE, font)
 
-        if timer_box_img:
-            box_w, box_h = 120, 110
-            box = pygame.transform.smoothscale(timer_box_img, (box_w, box_h))
-            x = WIDTH - 16 - box_w - 12
-            y = 16
-            screen.blit(box, (x, y))
-            tempo_font = pygame.font.SysFont("consolas", 30, bold=True)
-            tempo_val = int(alarm_timer) if alarm else 0
-            tempo_txt = tempo_font.render(f"{tempo_val}", True, (255,255,255))
-            screen.blit(
-                tempo_txt,
-                (x + box_w//2 - tempo_txt.get_width()//2,
-                 y + box_h//2 - tempo_txt.get_height()//2)
-            )
 
         draw_text(screen, "WASD: Mover | SPACE: Roubar | E: Porta", 18, 6, WHITE, font)
         pygame.display.flip()
