@@ -1,4 +1,5 @@
 # As Três Graças
+Feito por Vitória Machado e Sofia Ishizaki
 
 ## Sobre o jogo
 As Três Graças é um jogo feito em Python com Pygame, dividido em três fases. A proposta é misturar exploração, quebra de tempo e furtividade. Você controla a personagem e precisa cumprir objetivos específicos em cada fase para avançar, lidando com obstáculos, áreas de risco e interações no cenário.
